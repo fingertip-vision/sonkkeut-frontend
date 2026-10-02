@@ -11,7 +11,7 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun GuidanceControls(output: GuidanceOutput, enabled: Boolean, onStop: () -> Unit) {
+fun GuidanceControls(output: GuidanceOutput, enabled: Boolean, onStop: () -> Unit, allowTests: Boolean = true) {
     val context = LocalContext.current
     var settingsError by remember { mutableStateOf("") }
     var showTest by remember { mutableStateOf(false) }
@@ -30,7 +30,7 @@ fun GuidanceControls(output: GuidanceOutput, enabled: Boolean, onStop: () -> Uni
             if (settingsError.isNotEmpty()) Text(settingsError)
         }
         TextButton(onClick = { showTest = !showTest }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text(if (showTest) "테스트 안내 닫기" else "테스트 안내 펼치기") }
-        if (showTest) {
+        if (showTest && allowTests) {
             Text("아래 버튼은 만들어 둔 입력을 재생합니다. 실제 키오스크 인식·주문·누름 지시가 아닙니다.")
             OutlinedButton(onClick = { output.announce("test-far", "테스트 안내입니다. 오른쪽 위로 이동해 주세요.", direction = true, vibration = GuidancePhrases.vibration(false)) }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("방향·진동 테스트") }
             OutlinedButton(onClick = { output.announce("test-near", "테스트 안내입니다. 오른쪽 위로 조금.", direction = true, vibration = GuidancePhrases.vibration(true)) }, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("가까움·진동 테스트") }

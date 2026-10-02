@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AnnouncementGateTest {
+    @Test fun clearingOldSessionRepeatDoesNotPermitAnotherPress() {
+        val gate=AnnouncementGate()
+        gate.accept("press","누름 안내",0,press=true)
+        gate.clearLastGuidance()
+        assertNull(gate.lastText)
+        assertFalse(gate.accept("press-new","누름 안내",1,press=true))
+    }
     @Test fun repeatedStateDoesNotReplay() {
         val gate = AnnouncementGate()
         assertTrue(gate.accept("camera", "카메라 실행", 0))

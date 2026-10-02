@@ -19,6 +19,7 @@ class AnnouncementGate {
     }
     fun resetAttempt() { pressIssued = false; lastKey = null; lastDirectionAt = Long.MIN_VALUE }
     fun clearDeduplication() { lastKey = null; lastDirectionAt = Long.MIN_VALUE }
+    fun clearLastGuidance() { lastText = null; clearDeduplication() }
 }
 
 object GuidancePhrases {
