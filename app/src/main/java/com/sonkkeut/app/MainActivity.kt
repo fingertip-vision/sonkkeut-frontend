@@ -63,6 +63,7 @@ private fun CameraScreen() {
     var foreground by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     var cameraStatus by remember { mutableStateOf("카메라를 준비하고 있습니다") }
     var frameStatus by remember { mutableStateOf("") }
+    var integratedActive by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         cameraGranted = it
@@ -100,7 +101,7 @@ private fun CameraScreen() {
             output.resumeOutput()
             val screenReader = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isTouchExplorationEnabled
             // TalkBack already announces live-region state; avoid competing automatic speech.
-            if (!screenReader) output.announce("state:$status", "손끝길 안내입니다. $status")
+            if (!screenReader && !integratedActive) output.announce("state:$status", "손끝길 안내입니다. $status")
         }
     }
     Surface(Modifier.fillMaxSize()) {
@@ -143,15 +144,17 @@ private fun CameraScreen() {
                 }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("앱 권한 설정 열기") }
             }
             HorizontalDivider()
-            GuidanceControls(output, foreground && !paused, onStop = { output.suspendOutput(); paused = true })
+            GuidanceControls(output, foreground && !paused, onStop = { output.suspendOutput(); paused = true }, allowTests = !integratedActive)
             HorizontalDivider()
-            ReplayControls(output, foreground && !paused)
+            IntegratedSessionControls(output, foreground && !paused, onActive = { integratedActive = it })
             HorizontalDivider()
-            CoreCalculationControls(output, foreground && !paused)
+            ReplayControls(output, foreground && !paused && !integratedActive)
+            HorizontalDivider()
+            CoreCalculationControls(output, foreground && !paused && !integratedActive)
             HorizontalDivider()
             BackendSettings(onAnnouncement = { message ->
                 val screenReader = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isTouchExplorationEnabled
-                if (foreground && !paused && !screenReader) output.announce("backend:$message", message)
+                if (foreground && !paused && !screenReader && !integratedActive) output.announce("backend:$message", message)
             })
             Text("현재는 카메라 미리보기 단계입니다. 화면 인식과 주문 안내는 아직 제공하지 않습니다.")
             Text("영상은 저장하거나 서버에 보내지 않습니다. 마이크 녹음도 시작하지 않습니다.", style = MaterialTheme.typography.bodySmall)

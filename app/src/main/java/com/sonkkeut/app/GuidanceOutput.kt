@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 class GuidanceOutput(context: Context) {
     private val main = Handler(Looper.getMainLooper())
     private val audio = context.getSystemService(AudioManager::class.java)
+    private val accessibility = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
     private val vibrator = context.getSystemService(Vibrator::class.java)
     private val gate = AnnouncementGate()
     private var tts: TextToSpeech? = null
@@ -78,8 +79,9 @@ class GuidanceOutput(context: Context) {
         }
         speak(text)
     }
-    fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it) } }
-    private fun speak(text: String) {
+    fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it, explicit = true) } }
+    private fun speak(text: String, explicit: Boolean = false) {
+        if (!explicit && accessibility.isTouchExplorationEnabled) { outputStatus = "화면 읽기 안내: $text"; return }
         if (!ready) { outputStatus = "화면 안내: $text"; return }
         if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             outputStatus = "다른 소리가 재생 중입니다. 다시 듣기를 눌러 주세요."
@@ -96,5 +98,6 @@ class GuidanceOutput(context: Context) {
     fun suspendOutput() { suspended = true; stop() }
     fun resumeOutput() { suspended = false; gate.clearDeduplication() }
     fun resetAttempt() { stop(); gate.resetAttempt() }
+    fun clearRepeat() { stopDevices(); gate.clearLastGuidance(); outputStatus = "이전 세션 안내를 지웠습니다." }
     fun close() { closed = true; stopDevices(); tts?.shutdown(); tts = null; main.removeCallbacksAndMessages(null) }
 }
