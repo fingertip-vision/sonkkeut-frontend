@@ -145,6 +145,10 @@ private fun CameraScreen() {
             HorizontalDivider()
             GuidanceControls(output, foreground && !paused, onStop = { output.suspendOutput(); paused = true })
             HorizontalDivider()
+            ReplayControls(output, foreground && !paused)
+            HorizontalDivider()
+            CoreCalculationControls(output, foreground && !paused)
+            HorizontalDivider()
             BackendSettings(onAnnouncement = { message ->
                 val screenReader = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isTouchExplorationEnabled
                 if (foreground && !paused && !screenReader) output.announce("backend:$message", message)
