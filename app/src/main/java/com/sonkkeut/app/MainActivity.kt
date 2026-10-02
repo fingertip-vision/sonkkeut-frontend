@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
 private fun CameraScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val output = remember { GuidanceOutput(context) }
+    DisposableEffect(output) { onDispose { output.close() } }
     fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
     var cameraGranted by remember { mutableStateOf(granted(Manifest.permission.CAMERA)) }
     var micGranted by remember { mutableStateOf(granted(Manifest.permission.RECORD_AUDIO)) }
@@ -76,7 +78,7 @@ private fun CameraScreen() {
                     micGranted = granted(Manifest.permission.RECORD_AUDIO)
                     foreground = true
                 }
-                Lifecycle.Event.ON_STOP -> { foreground = false; paused = true }
+                Lifecycle.Event.ON_STOP -> { foreground = false; paused = true; output.suspendOutput() }
                 else -> Unit
             }
         }
@@ -90,6 +92,16 @@ private fun CameraScreen() {
         paused -> "일시 정지 상태입니다. 카메라 입력을 멈췄습니다."
         !foreground -> "앱이 화면에 표시될 때 카메라를 사용할 수 있습니다."
         else -> cameraStatus
+    }
+    LaunchedEffect(foreground, paused, status, output.ready) {
+        if (!foreground || paused) {
+            output.suspendOutput()
+        } else {
+            output.resumeOutput()
+            val screenReader = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isTouchExplorationEnabled
+            // TalkBack already announces live-region state; avoid competing automatic speech.
+            if (!screenReader) output.announce("state:$status", "손끝길 안내입니다. $status")
+        }
     }
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -113,7 +125,7 @@ private fun CameraScreen() {
                     Text(if (cameraRequested) "카메라 권한 다시 요청" else "카메라 권한 허용")
                 }
             } else {
-                Button(onClick = { paused = !paused }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                Button(onClick = { if (!paused) output.suspendOutput(); paused = !paused }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                     Text(if (paused) "카메라 다시 시작" else "일시 정지")
                 }
                 if (active && cameraStatus.startsWith("카메라를 사용할 수 없습니다")) {
@@ -131,7 +143,12 @@ private fun CameraScreen() {
                 }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("앱 권한 설정 열기") }
             }
             HorizontalDivider()
-            BackendSettings()
+            GuidanceControls(output, foreground && !paused, onStop = { output.suspendOutput(); paused = true })
+            HorizontalDivider()
+            BackendSettings(onAnnouncement = { message ->
+                val screenReader = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java).isTouchExplorationEnabled
+                if (foreground && !paused && !screenReader) output.announce("backend:$message", message)
+            })
             Text("현재는 카메라 미리보기 단계입니다. 화면 인식과 주문 안내는 아직 제공하지 않습니다.")
             Text("영상은 저장하거나 서버에 보내지 않습니다. 마이크 녹음도 시작하지 않습니다.", style = MaterialTheme.typography.bodySmall)
         }

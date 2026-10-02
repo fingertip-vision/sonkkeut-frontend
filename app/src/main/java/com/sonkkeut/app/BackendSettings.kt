@@ -17,7 +17,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
-fun BackendSettings() {
+fun BackendSettings(onAnnouncement: (String) -> Unit = {}) {
+    val currentAnnouncement by rememberUpdatedState(onAnnouncement)
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val prefs = remember { context.getSharedPreferences("backend", android.content.Context.MODE_PRIVATE) }
@@ -50,6 +51,7 @@ fun BackendSettings() {
         Button(onClick = {
             val normalized = try { BackendAddress.normalize(address, BuildConfig.DEBUG) } catch (e: IllegalArgumentException) {
                 message = e.message ?: "서버 주소를 확인해 주세요."
+                currentAnnouncement(message)
                 return@Button
             }
             address = normalized
@@ -66,6 +68,7 @@ fun BackendSettings() {
                     HealthResult.ConnectionFailed -> "서버에 연결할 수 없습니다. 주소, 네트워크와 인증서를 확인해 주세요."
                 }
                 busy = false; job = null
+                currentAnnouncement(message)
             }
         }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("주소 저장 및 연결 확인") }
         if (busy) TextButton(onClick = { cancel() }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("연결 확인 취소") }
