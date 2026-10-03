@@ -1,2 +1,102 @@
-# sonkkeut-frontend
-손끝길 - 앱 화면(UI/UX)과 온디바이스 AI 연동 프론트엔드
+# 손끝길 Android·공개 서비스 연결
+
+프론트 앱, 팀의 온디바이스 영상·OCR·음성 모델과 백엔드를 연결했습니다. 공개 서비스의 기본 주소는 **https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site**, 시연 매장 코드는 **QXWBW2**, 모델 버전은 **2026.10.03**입니다. APK에는 M1·M1-R·M2와 팀 OCR v2의 ONNX가 들어 있습니다. 팀 Whisper v3는 첫 사용 시 원본 릴리스 약 485 MB를 내려받아 검증한 뒤 기기 안에서 실행합니다.
+
+## 지금 확인하기
+
+휴대폰 없이 [상세 시뮬레이션](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 전체 사용법은 [`../LOCAL_GUIDE.md`](../LOCAL_GUIDE.md)에 있습니다.
+
+1. PC 브라우저에서 [시연 키오스크](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/kiosk)를 엽니다. `?flow=2`, `?flow=3`으로 배치가 다른 시연 화면도 열 수 있습니다.
+2. ARM64 Android 휴대폰에서 USB 디버깅을 허용하고 이 PC에 연결합니다.
+3. PowerShell에서 공개 서비스용 APK를 설치합니다.
+
+```powershell
+cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
+.\install-android.ps1 -Public
+```
+
+기기가 여러 대이면 `install-android.ps1 -Public -Device SERIAL`로 ADB 번호를 지정합니다. 스크립트는 `../sonkkeut-public.apk`를 설치하고 앱을 실행합니다. 공개 서비스 연결에는 인터넷이 필요하며, PC 로컬 서버나 `adb reverse` 설정은 필요하지 않습니다.
+
+4. 앱의 서버 주소와 매장 코드가 위 공개 주소·**QXWBW2**인지 확인하고 **서버 연결·메뉴 받기**를 누릅니다. 이전 APK에서 저장한 설정이 있으면 직접 바꿔 주세요.
+5. **손끝길 시작**을 누르고 카메라·마이크 권한을 허용합니다. 휴대폰 카메라로 PC의 키오스크 화면을 비춥니다.
+6. **자체 음성 모델 받기 (약 485MB)**로 모델을 준비한 뒤 **자체 모델로 말로 주문하기**를 사용합니다. 다운로드와 압축 내부 파일은 SHA-256으로 검증합니다. 준비된 모델은 이후 녹음을 기기 안에서 처리합니다. 주문 문장 입력과 별도 **기기 음성 인식으로 주문하기**도 사용할 수 있습니다.
+7. 예: `따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해주세요`. **입력한 주문 확인 → 네, 이 주문으로 안내 시작**으로 주문을 확인한 뒤 목표 버튼에 검지를 옮기세요. 음성·진동 안내 후 눌린 결과를 확인하며 다음 단계를 진행합니다.
+
+시연 화면은 실제 결제를 수행하지 않습니다. 결제 화면에 도착하면 주문 안내가 끝납니다. 별도 기기 음성 인식은 Android 12 이상에서 기기의 온디바이스 한국어 인식 서비스·언어팩이 필요합니다. 한국어 TTS의 언어 데이터도 기기에서 준비해야 합니다.
+
+## 연결 구조
+
+`Camera → M1 화면 모서리 → M1-R 보정 → 호모그래피 → M2 요소 검출 → 팀 OCR v2·CTC → 화면 구조 → 확인한 주문의 계획 → MediaPipe 손끝 → 음성·진동 → 누름 검증`
+
+`Microphone → 팀 Whisper v3·CTranslate2 → 메뉴 문맥을 반영한 한국어 주문 → 사용자 확인 → 주문 계획`
+
+- 영상·OCR·손끝·자체 음성 모델은 휴대폰 안에서 실행합니다. 카메라·녹음·주문 문장을 백엔드로 보내지 않습니다. 공개 백엔드는 Paddle·Whisper 추론을 실행하지 않습니다.
+- OCR은 ML Kit의 줄 위치를 이용해 자체 ONNX로 읽습니다. 선택·장바구니·총액 보완과 낮은 신뢰도 텍스트 대체에 ML Kit를 사용하며, 대체한 OCR은 불확실 표시를 유지합니다.
+- 서버는 매장 메뉴, 모델 버전·해시, 동의한 익명 사용 통계를 제공합니다. 메뉴는 앱에 캐시됩니다. 통계는 기본 꺼짐이며, 동의한 경우 전송 실패 데이터를 저장해 재전송합니다. 서버는 같은 이벤트의 중복 집계를 막습니다.
+- 메뉴·수량·온도·포장/매장을 확인한 뒤 안내를 시작합니다. 여러 잔은 담기 성공을 확인하며 한 잔씩 처리합니다. 지원하지 않는 추가 요청이나 불확실한 인식은 확인을 요청합니다.
+- 선택 결과·장바구니 수량·총액 등 필요한 증거가 없거나 맞지 않으면 진행을 멈추고 재확인을 안내합니다.
+
+## 모델 식별
+
+[`../model-manifest.json`](../model-manifest.json)에 각 모델의 SHA-256·크기·입출력·원본 릴리스·검증 범위가 있습니다. 같은 정보는 APK와 서버의 `/api/models/latest`에 제공됩니다. APK의 네 ONNX는 번들 모델이며, 자체 Whisper는 고정된 원본 ZIP을 처음 내려받아 검증·설치합니다. 이 동작은 임의 최신 모델로 자동 교체하는 기능과 별개입니다.
+
+| 모델 | 입력 | 출력 | 역할·설치 |
+|---|---|---|---|
+| m1_screen_corners_int8.onnx | 1×3×640×640 | 1×17×8400 | 화면과 네 모서리, APK 포함 |
+| m1r_corner_refiner.onnx | N×1×64×64 | N×2 | 모서리 보정, APK 포함 |
+| m2_screen_elements_int8.onnx | 1×3×640×640 | 1×9×8400 | tab/menu/price/button/back, APK 포함 |
+| m3_kiosk_rec_v2.onnx | 1×3×48×가변 너비 | 1×T×11947 확률 | 팀 OCR v2·CTC, APK 포함 |
+| whisper-elder-v3-ct2.zip | 16 kHz 음성 → 1×80×3000 log-mel | 한국어 문장 | 팀 Whisper v3·ARM64 CTranslate2, 첫 사용 다운로드 |
+
+Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저장소의 [`docs/unified-ai.md`](../sonkkeut-ai/docs/unified-ai.md)를 확인하세요.
+
+## 메뉴·통계 관리와 로컬 재현
+
+- [공개 메뉴 관리](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/owner): 매장 생성·점주 인증 후 메뉴를 관리합니다.
+- [공개 통계](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/dashboard): 매장 코드와 점주 키로 해당 매장 통계를 조회합니다.
+- 공개 서비스 정보는 [`../DEPLOYMENT_STATUS.json`](../DEPLOYMENT_STATUS.json)에 있습니다. 로컬 FastAPI의 API 문서는 서버 실행 후 `http://127.0.0.1:18080/docs`에서 확인합니다.
+
+기존 로컬 재현용 APK는 `../sonkkeut-local.apk`이며 시연 코드는 **BYDHTF**입니다. 아래 명령으로 로컬 서버를 실행하고 해당 APK를 설치하면 스크립트가 `adb reverse tcp:18080 tcp:18080`을 설정합니다. USB를 다시 연결하면 포트 연결을 다시 설정해야 합니다.
+
+```powershell
+.\start-local.ps1
+.\install-android.ps1
+```
+
+이 경로의 앱 설정은 `http://127.0.0.1:18080`·**BYDHTF**입니다. 로컬 DB와 관리 키는 저장소 밖 `work/`에 보관합니다. `work/demo-store.json`, `work/local-admin.key`는 로컬 매장의 비공개 키이며 공개 매장과 별개입니다. 종료는 `../stop-local.ps1`을 사용합니다. 자세한 재현 순서는 [`../LOCAL_GUIDE.md`](../LOCAL_GUIDE.md)를 확인하세요.
+
+## 다시 빌드하기
+
+```powershell
+cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
+.\build-android.ps1 -StoreCode QXWBW2 -OutputName sonkkeut-public.apk
+```
+
+현재 PC에 준비된 JDK 17, `work/android-sdk`, `work/gradle-cache`를 사용합니다. Windows의 긴 C++ 빌드 경로를 피하려고 빌드 동안 V:를 outputs 폴더에 연결합니다. 다른 V: 연결이 있으면 덮어쓰지 않고 중지합니다. AI 소스를 수정하면 빌드 스크립트가 npm에 복사 설치된 모듈도 갱신합니다.
+
+결과는 `../sonkkeut-public.apk`입니다. Android API 24 이상 ARM64용 개발 서명 APK입니다. 앱스토어 배포에는 별도 릴리스 서명이 필요합니다. 파일 이름을 바꾸는 `-OutputName`은 서버 주소 기본값을 바꾸지 않으므로, 로컬 전용 빌드에는 앱 설정도 확인하세요.
+
+새 PC에서는 Python 환경과 Android SDK를 준비해야 합니다. 로컬 백엔드도 재현하려면 outputs 폴더에서:
+
+```powershell
+py -3.12 -m venv ..\work\backend-venv
+..\work\backend-venv\Scripts\python.exe -m pip install -r .\sonkkeut-backend\requirements-dev.lock.txt
+cd .\sonkkeut-frontend
+npm ci
+```
+
+Android SDK platform 35, build-tools 35/34, NDK 26.1.10909125, CMake 3.22.1과 JDK 17이 필요합니다. `build-android.ps1`의 경로를 해당 PC 환경에 맞추세요. 자체 음성 런타임의 소스·빌드 출처는 [`../sonkkeut-ai/docs/unified-ai.md`](../sonkkeut-ai/docs/unified-ai.md)와 SDK README에 있습니다.
+
+## 검증 범위
+
+새 통합에서는 팀 OCR을 합성 한국어 3개에 실제 추론했고 Python·Kotlin CTC 결과가 일치했습니다. Python 통합 계약 테스트 15개를 포함해 CPU 환경에서 38개가 통과했습니다(기존 PyTorch 실가중치 테스트 3개 제외). 팀 Whisper의 실제 CPU 추론, OCR → 음성·주문 해석 → 확인된 목표 계획의 HTTP 연결도 검증했습니다.
+
+Android 자체 Whisper는 API 35의 ARM64 변환 에뮬레이터에서 합성 한국어 음성과 메뉴 문맥으로 실제 추론했습니다. 기록된 20.376초는 물리적 휴대폰의 음성 처리 성능이 아닙니다. TypeScript·ESLint·주문 상태 검증과 APK·네이티브 통합 테스트의 개별 결과는 아래 기록을 확인하세요.
+
+- [`../model-manifest.json`](../model-manifest.json): 실제 모델 출처·해시와 모델별 검증 범위
+- [`../DEPLOYMENT_STATUS.json`](../DEPLOYMENT_STATUS.json): 공개 URL·저장소·배포 및 공개 API 검증
+- [`../../work/unified-ai-smoke/model-verification.json`](../../work/unified-ai-smoke/model-verification.json), [`../../work/unified-ai-smoke/real-api-result.json`](../../work/unified-ai-smoke/real-api-result.json): 이번 실제 모델 CPU·HTTP 검증
+- [`../validation.json`](../validation.json): 이전 로컬 APK의 검사 기록(새 공개 APK와 구분)
+- [`../simulation-checks.json`](../simulation-checks.json): 브라우저 모의 시뮬레이션 60회·560단계·80회 복구·안전 검사 15개 기록
+
+실제 휴대폰 카메라·마이크로 주문 전체를 수행하는 현장 검증은 남아 있습니다. 일반 키오스크의 선택 색상만으로 옵션 선택을 추정하지 않으며 시연은 `선택됨` 문구와 장바구니 수량을 표시합니다. 표시 방식이 다른 키오스크에는 인식 규칙 및 누름 확인 조건 조정이 필요할 수 있습니다. 기능 명세서의 정확도·지연·현장 성공률 목표는 측정 완료로 보고하지 않습니다.

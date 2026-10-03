@@ -1,0 +1,11 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "react": ["node_modules/@types/react"],
+      "react-native": ["node_modules/react-native"],
+      "react-native-vision-camera": ["node_modules/react-native-vision-camera"]
+    }
+  }
+}
