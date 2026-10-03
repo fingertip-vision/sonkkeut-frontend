@@ -4,7 +4,9 @@
 
 ## 지금 확인하기
 
-휴대폰 없이 [상세 시뮬레이션](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 전체 사용법은 [`../LOCAL_GUIDE.md`](../LOCAL_GUIDE.md)에 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.1-public-20261003/sonkkeut-public.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.1-public-20261003/public-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+
+휴대폰 없이 [상세 시뮬레이션](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 
 1. PC 브라우저에서 [시연 키오스크](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/kiosk)를 엽니다. `?flow=2`, `?flow=3`으로 배치가 다른 시연 화면도 열 수 있습니다.
 2. ARM64 Android 휴대폰에서 USB 디버깅을 허용하고 이 PC에 연결합니다.
@@ -38,7 +40,7 @@ cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
 
 ## 모델 식별
 
-[`../model-manifest.json`](../model-manifest.json)에 각 모델의 SHA-256·크기·입출력·원본 릴리스·검증 범위가 있습니다. 같은 정보는 APK와 서버의 `/api/models/latest`에 제공됩니다. APK의 네 ONNX는 번들 모델이며, 자체 Whisper는 고정된 원본 ZIP을 처음 내려받아 검증·설치합니다. 이 동작은 임의 최신 모델로 자동 교체하는 기능과 별개입니다.
+[모델 명세](https://github.com/fingertip-vision/sonkkeut-ai/blob/codex/unified-ai-20261003/android/react-native-sonkkeut/android/src/main/assets/sonkkeut/model-manifest.json)에 각 모델의 SHA-256·크기·입출력·원본 릴리스·검증 범위가 있습니다. 같은 정보는 APK와 서버의 `/api/models/latest`에 제공됩니다. APK의 네 ONNX는 번들 모델이며, 자체 Whisper는 고정된 원본 ZIP을 처음 내려받아 검증·설치합니다. 이 동작은 임의 최신 모델로 자동 교체하는 기능과 별개입니다.
 
 | 모델 | 입력 | 출력 | 역할·설치 |
 |---|---|---|---|
@@ -48,13 +50,13 @@ cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
 | m3_kiosk_rec_v2.onnx | 1×3×48×가변 너비 | 1×T×11947 확률 | 팀 OCR v2·CTC, APK 포함 |
 | whisper-elder-v3-ct2.zip | 16 kHz 음성 → 1×80×3000 log-mel | 한국어 문장 | 팀 Whisper v3·ARM64 CTranslate2, 첫 사용 다운로드 |
 
-Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저장소의 [`docs/unified-ai.md`](../sonkkeut-ai/docs/unified-ai.md)를 확인하세요.
+Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저장소의 [통합 안내](https://github.com/fingertip-vision/sonkkeut-ai/blob/codex/unified-ai-20261003/docs/unified-ai.md)를 확인하세요.
 
 ## 메뉴·통계 관리와 로컬 재현
 
 - [공개 메뉴 관리](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/owner): 매장 생성·점주 인증 후 메뉴를 관리합니다.
 - [공개 통계](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/dashboard): 매장 코드와 점주 키로 해당 매장 통계를 조회합니다.
-- 공개 서비스 정보는 [`../DEPLOYMENT_STATUS.json`](../DEPLOYMENT_STATUS.json)에 있습니다. 로컬 FastAPI의 API 문서는 서버 실행 후 `http://127.0.0.1:18080/docs`에서 확인합니다.
+- 현재 PC의 공개 서비스 정보는 `outputs/DEPLOYMENT_STATUS.json`에 있습니다. 로컬 FastAPI의 API 문서는 서버 실행 후 `http://127.0.0.1:18080/docs`에서 확인합니다.
 
 기존 로컬 재현용 APK는 `../sonkkeut-local.apk`이며 시연 코드는 **BYDHTF**입니다. 아래 명령으로 로컬 서버를 실행하고 해당 APK를 설치하면 스크립트가 `adb reverse tcp:18080 tcp:18080`을 설정합니다. USB를 다시 연결하면 포트 연결을 다시 설정해야 합니다.
 
@@ -63,9 +65,22 @@ Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저�
 .\install-android.ps1
 ```
 
-이 경로의 앱 설정은 `http://127.0.0.1:18080`·**BYDHTF**입니다. 로컬 DB와 관리 키는 저장소 밖 `work/`에 보관합니다. `work/demo-store.json`, `work/local-admin.key`는 로컬 매장의 비공개 키이며 공개 매장과 별개입니다. 종료는 `../stop-local.ps1`을 사용합니다. 자세한 재현 순서는 [`../LOCAL_GUIDE.md`](../LOCAL_GUIDE.md)를 확인하세요.
+이 경로의 앱 설정은 `http://127.0.0.1:18080`·**BYDHTF**입니다. 로컬 DB와 관리 키는 저장소 밖 `work/`에 보관합니다. `work/demo-store.json`, `work/local-admin.key`는 로컬 매장의 비공개 키이며 공개 매장과 별개입니다. 종료는 `../stop-local.ps1`을 사용합니다. 현재 PC의 자세한 재현 순서는 `outputs/LOCAL_GUIDE.md`를 확인하세요.
 
 ## 다시 빌드하기
+
+저장소만 받아 새 환경에서 빌드하려면 두 저장소를 나란히 준비합니다. JDK 17·Android SDK 35·NDK 26.1.10909125·CMake 3.22.1을 설치하고 `ANDROID_HOME`을 설정하세요.
+
+```powershell
+git clone --branch codex/unified-ai-20261003 https://github.com/fingertip-vision/sonkkeut-ai.git
+git clone --branch deploy/public-20261003 https://github.com/fingertip-vision/sonkkeut-frontend.git
+cd sonkkeut-frontend
+npm ci
+cd android
+.\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+결과는 `android/app/build/outputs/apk/release/app-release.apk`입니다. 아래 도구는 현재 PC 작업 폴더에 준비되어 있습니다.
 
 ```powershell
 cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
