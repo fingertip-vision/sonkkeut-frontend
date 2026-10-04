@@ -1,25 +1,27 @@
 # 손끝길 Android·공개 서비스 연결
 
-프론트 앱, 팀의 온디바이스 영상·OCR·음성 모델과 백엔드를 연결했습니다. 공개 서비스의 기본 주소는 **https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site**, 시연 매장 코드는 **QXWBW2**, 모델 버전은 **2026.10.03**입니다. APK에는 M1·M1-R·M2와 팀 OCR v2의 ONNX가 들어 있습니다. 팀 Whisper v3는 첫 사용 시 원본 릴리스 약 485 MB를 내려받아 검증한 뒤 기기 안에서 실행합니다.
+프론트 앱, 팀의 온디바이스 영상·OCR·음성 모델과 백엔드를 연결했습니다. AWS EC2·Spring Boot·MySQL에 연결하는 기본 주소는 **https://amazing-manually-transcript-est.trycloudflare.com**, 시연 매장 코드는 **Z9XZSN**, 모델 버전은 **2026.10.03**입니다. APK에는 M1·M1-R·M2와 팀 OCR v2의 ONNX가 들어 있습니다. 팀 Whisper v3는 첫 사용 시 원본 릴리스 약 485 MB를 내려받아 검증한 뒤 기기 안에서 실행합니다.
+
+AWS 서버는 팀의 기존 GitHub Actions → ECR → EC2 SSM 경로로 배포합니다. Cloudflare quick tunnel을 통해 HTTPS로 공개하므로 터널 컨테이너 재시작 시 주소가 바뀔 수 있습니다. 새 주소는 백엔드 Actions 배포 요약에서 확인하고 앱의 서버 설정에서 변경할 수 있습니다. 고정 주소 운영에는 별도의 도메인·고정 터널 설정이 필요합니다.
 
 ## 지금 확인하기
 
-휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.1-public-20261003/sonkkeut-public.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.1-public-20261003/public-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.2-aws-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.2-aws-20261005/aws-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
 
-휴대폰 없이 [상세 시뮬레이션](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
+휴대폰 없이 [상세 시뮬레이션](https://amazing-manually-transcript-est.trycloudflare.com/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 
-1. PC 브라우저에서 [시연 키오스크](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/kiosk)를 엽니다. `?flow=2`, `?flow=3`으로 배치가 다른 시연 화면도 열 수 있습니다.
+1. PC 브라우저에서 [시연 키오스크](https://amazing-manually-transcript-est.trycloudflare.com/kiosk)를 엽니다. `?flow=2`, `?flow=3`으로 배치가 다른 시연 화면도 열 수 있습니다.
 2. ARM64 Android 휴대폰에서 USB 디버깅을 허용하고 이 PC에 연결합니다.
 3. PowerShell에서 공개 서비스용 APK를 설치합니다.
 
 ```powershell
 cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
-.\install-android.ps1 -Public
+.\install-android.ps1 -Aws
 ```
 
-기기가 여러 대이면 `install-android.ps1 -Public -Device SERIAL`로 ADB 번호를 지정합니다. 스크립트는 `../sonkkeut-public.apk`를 설치하고 앱을 실행합니다. 공개 서비스 연결에는 인터넷이 필요하며, PC 로컬 서버나 `adb reverse` 설정은 필요하지 않습니다.
+기기가 여러 대이면 `install-android.ps1 -Aws -Device SERIAL`로 ADB 번호를 지정합니다. 스크립트는 `../sonkkeut-aws.apk`를 설치하고 앱을 실행합니다. 공개 서비스 연결에는 인터넷이 필요하며, PC 로컬 서버나 `adb reverse` 설정은 필요하지 않습니다.
 
-4. 앱의 서버 주소와 매장 코드가 위 공개 주소·**QXWBW2**인지 확인하고 **서버 연결·메뉴 받기**를 누릅니다. 이전 APK에서 저장한 설정이 있으면 직접 바꿔 주세요.
+4. 앱의 서버 주소와 매장 코드가 위 공개 주소·**Z9XZSN**인지 확인하고 **서버 연결·메뉴 받기**를 누릅니다. 이전 공개 시연의 기본 주소·코드 쌍은 AWS로 자동 이전합니다. 사용자가 지정한 다른 서버·매장 설정은 유지됩니다.
 5. **손끝길 시작**을 누르고 카메라·마이크 권한을 허용합니다. 휴대폰 카메라로 PC의 키오스크 화면을 비춥니다.
 6. **자체 음성 모델 받기 (약 485MB)**로 모델을 준비한 뒤 **자체 모델로 말로 주문하기**를 사용합니다. 다운로드와 압축 내부 파일은 SHA-256으로 검증합니다. 준비된 모델은 이후 녹음을 기기 안에서 처리합니다. 주문 문장 입력과 별도 **기기 음성 인식으로 주문하기**도 사용할 수 있습니다.
 7. 예: `따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해주세요`. **입력한 주문 확인 → 네, 이 주문으로 안내 시작**으로 주문을 확인한 뒤 목표 버튼에 검지를 옮기세요. 음성·진동 안내 후 눌린 결과를 확인하며 다음 단계를 진행합니다.
@@ -54,8 +56,8 @@ Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저�
 
 ## 메뉴·통계 관리와 로컬 재현
 
-- [공개 메뉴 관리](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/owner): 매장 생성·점주 인증 후 메뉴를 관리합니다.
-- [공개 통계](https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site/dashboard): 매장 코드와 점주 키로 해당 매장 통계를 조회합니다.
+- [공개 메뉴 관리](https://amazing-manually-transcript-est.trycloudflare.com/owner): 매장 생성·점주 인증 후 메뉴를 관리합니다.
+- [공개 통계](https://amazing-manually-transcript-est.trycloudflare.com/dashboard): 매장 코드와 점주 키로 해당 매장 통계를 조회합니다.
 - 현재 PC의 공개 서비스 정보는 `outputs/DEPLOYMENT_STATUS.json`에 있습니다. 로컬 FastAPI의 API 문서는 서버 실행 후 `http://127.0.0.1:18080/docs`에서 확인합니다.
 
 기존 로컬 재현용 APK는 `../sonkkeut-local.apk`이며 시연 코드는 **BYDHTF**입니다. 아래 명령으로 로컬 서버를 실행하고 해당 APK를 설치하면 스크립트가 `adb reverse tcp:18080 tcp:18080`을 설정합니다. USB를 다시 연결하면 포트 연결을 다시 설정해야 합니다.
@@ -73,7 +75,7 @@ Python CPU 제공자와 `sonkkeut.ai.v1` 응답 계약·좌표 변환은 AI 저�
 
 ```powershell
 git clone --branch codex/unified-ai-20261003 https://github.com/fingertip-vision/sonkkeut-ai.git
-git clone --branch deploy/public-20261003 https://github.com/fingertip-vision/sonkkeut-frontend.git
+git clone --branch integrate/aws-20261005 https://github.com/fingertip-vision/sonkkeut-frontend.git
 cd sonkkeut-frontend
 npm ci
 cd android
@@ -84,12 +86,12 @@ cd android
 
 ```powershell
 cd 'C:\Users\User\Documents\Codex\2026-10-02\fingertip-vision\outputs'
-.\build-android.ps1 -StoreCode QXWBW2 -OutputName sonkkeut-public.apk
+.\build-android.ps1 -StoreCode Z9XZSN -OutputName sonkkeut-aws.apk
 ```
 
 현재 PC에 준비된 JDK 17, `work/android-sdk`, `work/gradle-cache`를 사용합니다. Windows의 긴 C++ 빌드 경로를 피하려고 빌드 동안 V:를 outputs 폴더에 연결합니다. 다른 V: 연결이 있으면 덮어쓰지 않고 중지합니다. AI 소스를 수정하면 빌드 스크립트가 npm에 복사 설치된 모듈도 갱신합니다.
 
-결과는 `../sonkkeut-public.apk`입니다. Android API 24 이상 ARM64용 개발 서명 APK입니다. 앱스토어 배포에는 별도 릴리스 서명이 필요합니다. 파일 이름을 바꾸는 `-OutputName`은 서버 주소 기본값을 바꾸지 않으므로, 로컬 전용 빌드에는 앱 설정도 확인하세요.
+결과는 `../sonkkeut-aws.apk`입니다. Android API 24 이상 ARM64용 개발 서명 APK입니다. 앱스토어 배포에는 별도 릴리스 서명이 필요합니다. 파일 이름을 바꾸는 `-OutputName`은 서버 주소 기본값을 바꾸지 않으므로, 로컬 전용 빌드에는 앱 설정도 확인하세요.
 
 새 PC에서는 Python 환경과 Android SDK를 준비해야 합니다. 로컬 백엔드도 재현하려면 outputs 폴더에서:
 

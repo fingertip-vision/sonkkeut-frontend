@@ -8,7 +8,8 @@ import type {Action, MenuItem} from './src/domain';
 import {isReadableElement, OrderFlow, parseOrder, screenReading} from './src/domain';
 import {clearUsage, DEFAULT_MENU, enqueueUsage, flushUsage, health, loadMenu, modelVersion, validateBaseUrl} from './src/backend';
 import type {Step} from './src/backend';
-import {BACKEND_URL, DEFAULT_STORE_CODE, MODEL_VERSION} from './src/config';
+import {APP_VERSION, BACKEND_URL, DEFAULT_STORE_CODE, MODEL_VERSION} from './src/config';
+import {restoreSettings} from './src/settings';
 
 const labels = {S0: '준비', S1: '화면 탐색', S2: '화면 인식', S3: '주문 입력', S4: '손끝 유도', S5: '결과 확인', S6: '안내 완료', SE: '다시 확인'};
 function Button({title, onPress, disabled = false}: {title: string; onPress: () => void; disabled?: boolean}) {
@@ -101,6 +102,7 @@ export default function App() {
   }, [ai.ready]);
 
   useEffect(() => {
+    const lifecycleGeneration = generation;
     modelMounted.current = true;
     const progress = Sonkkeut.addModelDownloadListener(value => {
       if (modelMounted.current) {setModelProgress(value);}
@@ -122,7 +124,7 @@ export default function App() {
       if (modelMounted.current) {setModelPreparing(false);}
     });
     return () => {
-      modelMounted.current = false; generation.current++; progress();
+      modelMounted.current = false; lifecycleGeneration.current++; progress();
       Sonkkeut.cancelListening(); Sonkkeut.cancelSpeechModelDownload();
     };
   }, []);
@@ -137,8 +139,8 @@ export default function App() {
     AsyncStorage.getItem('settings').then(raw => {
       if (!raw) {return;}
       if (connectGeneration.current !== 0) {return;}
-      const saved = JSON.parse(raw);
-      setServer(typeof saved.server === 'string' ? saved.server : BACKEND_URL); setCode(typeof saved.code === 'string' ? saved.code : ''); setStatsEnabled(saved.statsEnabled === true);
+      const saved = restoreSettings(JSON.parse(raw));
+      setServer(saved.server); setCode(saved.code); setStatsEnabled(saved.statsEnabled);
       statsEnabledRef.current = saved.statsEnabled === true;
       if (saved.statsEnabled === true) {flushUsage().catch(() => {});}
     }).catch(() => {});
@@ -185,7 +187,7 @@ export default function App() {
     if (!statsEnabledRef.current || !server) {return;}
     try {
       const base = validateBaseUrl(server);
-      enqueueUsage(base, {store_code: storeCode, app_version: '0.1.1', model_version: MODEL_VERSION, completed,
+      enqueueUsage(base, {store_code: storeCode, app_version: APP_VERSION, model_version: MODEL_VERSION, completed,
         duration_s: Math.min(7200, (Date.now() - startedAt.current) / 1000), steps: steps.current.slice(0, 200),
         event_id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`}).catch(() => {});
     } catch (_) {}

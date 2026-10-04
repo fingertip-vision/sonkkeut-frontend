@@ -90,7 +90,7 @@ class IntegrationTest {
 
     @Test fun deviceReachesConfiguredBackendMenuAndHealth() {
         val arguments = InstrumentationRegistry.getArguments()
-        val base = arguments.getString("backendUrl") ?: "https://sonkkeutgil-mvp-oct02.enterenter0311.chatgpt.site"
+        val base = arguments.getString("backendUrl") ?: "https://amazing-manually-transcript-est.trycloudflare.com"
         fun get(path: String): String {
             val connection = URL("$base$path").openConnection() as HttpURLConnection
             connection.connectTimeout = 15000; connection.readTimeout = 15000
@@ -99,9 +99,12 @@ class IntegrationTest {
             finally {connection.disconnect()}
         }
         assertTrue(get("/healthz").contains("true"))
-        val code = arguments.getString("storeCode") ?: "QXWBW2"
+        val code = arguments.getString("storeCode") ?: "Z9XZSN"
         require(!code.isNullOrBlank()) { "Pass -Pandroid.testInstrumentationRunnerArguments.storeCode=DEMO_CODE" }
         assertTrue(get("/api/stores/$code/menu").contains("아메리카노"))
+        val models = org.json.JSONObject(get("/api/models/latest"))
+        assertEquals("2026.10.03", models.getString("version"))
+        assertEquals(5, models.getJSONArray("files").length())
     }
 
     @Test fun fineTunedOcrRunsOnAndroidWithoutFallback() {
