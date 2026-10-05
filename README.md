@@ -63,7 +63,7 @@ AI 모델 가중치 개선이나 LLM·재료/알레르기 추론은 이번 변�
 
 ## 개발 환경과 브랜치
 
-현재 작업 브랜치는 **develop_ai**입니다. 포크의 이 브랜치에서 AI 연결·검증·APK 배포를 진행합니다. `develop_ux` 병합은 작업 완료 후 사용자가 전략을 다시 확인하고 승인한 뒤에 수행합니다. AI 기준 커밋은 `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`입니다.
+현재 개발 기준 브랜치는 **develop_ux**입니다. `develop_ai`에서 완료한 AI 연결·검증·APK 0.2.3 배포 결과를 사용자 승인에 따라 `develop_ux`에 반영했습니다. 포크와 원본 저장소의 `develop_ux`를 같은 코드 기준으로 유지합니다. APK 빌드 소스는 `d6efa0f`이며, AI 기준 커밋은 `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`입니다.
 
 **Kotlin + Jetpack Compose + CameraX**를 사용합니다. Android Studio에서 저장소의 **루트 폴더**를 여세요. 루트 `app/`가 현재 Android 앱이며 `android/`와 기존 TypeScript 파일은 이전 구현 참고 자료입니다.
 

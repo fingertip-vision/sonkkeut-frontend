@@ -12,7 +12,7 @@ workspace/
   sonkkeut-ai/
 ```
 
-프론트는 `develop_ai`, AI는 `codex/unified-ai-20261003` 브랜치가 필요하다. 프론트 루트의 `settings.gradle.kts`가 AI 레포의 `android/sonkkeut-native` 모듈을 직접 포함한다. SDK 35, JDK 17, Gradle 8.10.2, AGP 8.7.2, Kotlin 1.9.25 / Compose compiler 1.5.15를 사용한다. Android Studio가 SDK 경로를 지정한 `local.properties`를 만든 뒤 `app` 실행 구성을 선택한다.
+프론트는 `develop_ux`, AI는 `codex/unified-ai-20261003` 브랜치가 필요하다. 프론트 루트의 `settings.gradle.kts`가 AI 레포의 `android/sonkkeut-native` 모듈을 직접 포함한다. SDK 35, JDK 17, Gradle 8.10.2, AGP 8.7.2, Kotlin 1.9.25 / Compose compiler 1.5.15를 사용한다. Android Studio가 SDK 경로를 지정한 `local.properties`를 만든 뒤 `app` 실행 구성을 선택한다.
 
 이 APK에 사용한 AI 소스 커밋: `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`.
 
@@ -57,6 +57,6 @@ workspace/
 
 ## AI 연결 0.2.3
 
-관련 표현·설명을 서버 메뉴에서 MenuDocument에 전달하고 매장별 SQLite 스냅샷 처리 후 현재 카탈로그에서 복원한다. 정식 이름을 다른 메뉴의 별칭보다 우선하도록 입력·음성 보정의 카탈로그를 정리한다. 추천 정보는 주문 별칭으로 승격하지 않는다. 현재 기본 서버에는 새 관련 표현·설명이 없어 실데이터 검색 효과는 미검증이다. 기존 UX 및 QA 항목은 유지하며 병합은 사용자 승인 후 수행한다. 최신 결과는 [0.2.3 검증 기록](develop-ai-validation-0.2.3.md)을 따른다.
+관련 표현·설명을 서버 메뉴에서 MenuDocument에 전달하고 매장별 SQLite 스냅샷 처리 후 현재 카탈로그에서 복원한다. 정식 이름을 다른 메뉴의 별칭보다 우선하도록 입력·음성 보정의 카탈로그를 정리한다. 추천 정보는 주문 별칭으로 승격하지 않는다. 현재 기본 서버에는 새 관련 표현·설명이 없어 실데이터 검색 효과는 미검증이다. 기존 UX 및 QA 항목은 유지한다. 사용자 승인에 따라 develop_ai 결과를 develop_ux에 반영했다. 최신 결과는 [0.2.3 검증 기록](develop-ai-validation-0.2.3.md)을 따른다.
 
 0.2.3 전달 APK 추가 검사에서는 주문·설정·종료 3개 통과, 카메라 초기 프레임 대기 1개 시간 초과를 확인했다. 자세한 재현·기존 APK 비교 결과는 최신 0.2.3 검증 기록을 따른다.
