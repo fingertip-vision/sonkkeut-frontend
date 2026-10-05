@@ -22,9 +22,6 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private val menuClient = NativeMenuClient(application)
     private val database = MenuRagDatabase(application)
     private val whisper = KoreanWhisper(application)
-    private val systemSpeech = NativeSystemSpeech(application)
-    val systemSpeechAvailable get()=systemSpeech.available
-    private var speechProvider="custom"
     private val usage = NativeUsageReporter(application)
     private val usageSteps = mutableListOf<JSONObject>()
     private var usageEventId = ""
@@ -153,11 +150,22 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { connectionMessage=e.message ?: "주소와 코드를 확인해 주세요." }
     }
     private fun applyMenu(result: NativeMenu) {
-        menu=result.items; menuVersion=result.version; storeName=result.store
+        menu=NativeMenuDocuments.canonicalAliases(result.items); menuVersion=result.version; storeName=result.store
         whisper.setMenuContext(menu.map { it.name })
         val aliases=menu.flatMap { m -> (listOf(m.name)+m.aliases).map { it to m.name } }.groupBy { it.first }
             .filterValues { matches -> matches.map { it.second }.distinct().size==1 }.mapValues { it.value.first().second }
         commands.execute { SonkkeutEngine.setMenuAliases(aliases) }
+    }
+    private var resumeAfterSettings=false
+    fun openEnvironmentSettings() {
+        resumeAfterSettings=running && !paused && flow.state!="S6" && !detailMode
+        open("accessibility")
+    }
+    fun closeEnvironmentSettings(cameraGranted: Boolean) {
+        val resume=resumeAfterSettings
+        resumeAfterSettings=false
+        open("home")
+        if(resume && cameraGranted && running && paused && flow.state!="S6") start()
     }
     fun open(value: String) {
         if(value!="home") closeDetailRead()
@@ -180,14 +188,14 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     }
     fun pause() { closeDetailRead(); cameraGeneration.incrementAndGet(); if(flow.state!="S6") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); speechRequested=false; commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
     fun end() {
-        reportSession(false); pause(); resetOrder(); running=false; page="home"; textOrderOpen=false; orderPrompted=false
+        resumeAfterSettings=false; reportSession(false); pause(); resetOrder(); running=false; page="home"; textOrderOpen=false; orderPrompted=false
         screen=null; frame=emptyMap(); found=false; rawSpeech=""; rag=null; flowState="S0"; recommendations=emptyList(); orderDraft=""
         pendingMenu?.let { applyMenu(it) }; pendingMenu=null
         announce("주문 안내를 종료했습니다. 손끝길 시작을 눌러 주세요.")
     }
     fun toggleTextOrder() { cancelSpeech(); speechRequested=false; orderPrompted=true; textOrderOpen=!textOrderOpen }
     fun consumeSpeechRequest() { speechRequested=false }
-    fun stopForBackground() { pause() }
+    fun stopForBackground() { resumeAfterSettings=false; pause() }
     fun prepareDetailRead() {
         if(!ready) { announce("AI 준비 후 상세 글자 읽기를 이용해 주세요."); return }
         pause(); open("home"); detailMode=true; detailLines=emptyList(); frame=emptyMap(); found=false
@@ -311,15 +319,17 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                 val result=if (fromSpeech) withContext(Dispatchers.IO) {
                     val payload=JSONArray(menu.map { m -> JSONObject().put("name",m.name).put("aliases",JSONArray(m.aliases)).put("sold_out",m.soldOut).put("category",m.category) })
                     val stored=JSONArray(database.catalog(JSONArray(listOf(server,storeCode,menuVersion)).toString(),payload.toString()))
-                    val docs=(0 until stored.length()).map { i -> val m=stored.getJSONObject(i); val a=m.getJSONArray("aliases")
-                        MenuDocument(m.getString("name"),(0 until a.length()).map { a.getString(it) },m.getBoolean("sold_out"),m.optString("category")) }
+                    val docs=NativeMenuDocuments.restoreCatalog(stored,menu)
                     MenuSpeechIndex(docs).correct(text)
                 } else null
                 if (token!=speechGeneration) return@launch
                 rag=result
-                if (result?.ambiguities?.isNotEmpty()==true) { announce("비슷한 메뉴가 있습니다. 후보를 선택해 주세요."); return@launch }
+                if (result?.ambiguities?.isNotEmpty()==true) { flowState="S3"; announce("비슷한 메뉴가 있습니다. 후보를 선택해 주세요."); return@launch }
                 val next=NativeOrderParser.parse(result?.text ?: text,menu)
-                flow.submit(next); order=next; flowState=flow.state; announce(next.confirmation())
+                if (!running || paused || page!="home") return@launch
+                flow.submit(next); order=next; flowState=flow.state
+                beginOrderGuidance()
+                announce(next.confirmation())
                 commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (token==speechGeneration) {
@@ -344,7 +354,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         resetOrder(); rag=null; rawSpeech=""; recommendations=emptyList(); orderDraft=draft; textOrderOpen=true; flowState="S3"
         announce("${candidate.menu.name}를 입력란에 넣었습니다. 수량·옵션과 매장 또는 포장을 다시 입력하고 주문을 확인해 주세요.")
     }
-    fun confirm() {
+    private fun beginOrderGuidance() {
         if(flow.state!="S3" || order==null) return
         flow.recover(); flow.submit(order!!); flow.paused=false; flow.confirm(); open("home"); start(); announce(flow.message)
     }
@@ -372,28 +382,20 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     }
     fun listen() {
         if (speechBusy || paused || !running || page!="home") return
+        if (!modelInstalled) { announce("자체 음성 모델을 먼저 다운로드해 주세요."); return }
         orderPrompted=true; speechRequested=false; textOrderOpen=false; cameraGeneration.incrementAndGet()
-        speechProvider="custom"
         resetOrder(); recommendations=emptyList()
         val token=++speechGeneration; speechBusy=true; recording=true; rawSpeech=""; rag=null; order=null; message="메뉴와 수량을 말씀해 주세요."
         whisper.listen(onResult={ result -> if(token==speechGeneration) { speechBusy=false; recording=false
             if(result.text.isBlank() || result.noSpeechProbability>.8) message="음성을 듣지 못했습니다. 다시 말씀해 주세요." else submit(result.text,true)
         } },onError={ error -> if(token==speechGeneration) { speechBusy=false; recording=false; message="음성 인식 오류: ${error.message}" } })
     }
-    fun listenSystem() {
-        if(speechBusy || paused || !running || page!="home") return
-        orderPrompted=true; speechRequested=false; textOrderOpen=false; cameraGeneration.incrementAndGet()
-        resetOrder(); recommendations=emptyList(); speechProvider="system"
-        val token=++speechGeneration; speechBusy=true; recording=true; rawSpeech=""; rag=null; message="기기 음성 인식으로 주문을 말씀해 주세요."
-        systemSpeech.listen(menu.map { it.name },{ text -> if(token==speechGeneration) { speechBusy=false; recording=false; submit(text,true) } },
-            { text -> if(token==speechGeneration) { speechBusy=false; recording=false; announce(text) } })
-    }
-    fun finishSpeech() { if(recording) { recording=false; if(speechProvider=="system") systemSpeech.finish() else whisper.finishCapture(); message="말씀하신 주문을 분석하고 있습니다." } }
-    fun cancelSpeech() { speechGeneration++; whisper.cancel(); systemSpeech.cancel(); recording=false; speechBusy=false }
+    fun finishSpeech() { if(recording) { recording=false; whisper.finishCapture(); message="말씀하신 주문을 분석하고 있습니다." } }
+    fun cancelSpeech() { speechGeneration++; whisper.cancel(); recording=false; speechBusy=false }
     fun announce(text: String, press: Boolean=false) { message=text; if (announcement!=text || press) { announcement=text; pressAnnouncement=press; announcementNumber++; if(text.isNotBlank()) captions=(listOf(text)+captions.filter { it!=text }).take(5) } }
     override fun onCleared() {
         closed=true; detailGeneration.incrementAndGet(); speechGeneration++; connectionGeneration++; runCatching { network.unregisterNetworkCallback(callback) }
-        usage.close(); systemSpeech.cancel(); whisper.close(); database.close(); SonkkeutEngine.running=false; commands.execute { synchronized(scannerLock) { detailScanner?.close(); detailScanner=null }; SonkkeutEngine.release() }; commands.shutdown()
+        usage.close(); whisper.close(); database.close(); SonkkeutEngine.running=false; commands.execute { synchronized(scannerLock) { detailScanner?.close(); detailScanner=null }; SonkkeutEngine.release() }; commands.shutdown()
         main.removeCallbacksAndMessages(null)
     }
     companion object { const val DEFAULT_SERVER="https://amazing-manually-transcript-est.trycloudflare.com" }

@@ -39,12 +39,10 @@ class NativeMenuClient(context: Context) {
         val array = json.getJSONArray("items"); require(array.length() <= 1000)
         val seen = mutableSetOf<String>()
         val items = (0 until array.length()).map { i -> val e = array.getJSONObject(i)
-            val name = e.getString("name"); require(name.isNotBlank() && name.length <= 80 && seen.add(name))
-            val a = e.getJSONArray("aliases"); require(a.length() <= 100)
-            val aliases = (0 until a.length()).map { a.getString(it).also { alias -> require(alias.length in 1..80) } }
-            val price = if (e.has("price") && !e.isNull("price")) e.getInt("price").also { require(it in 0..10000000) } else null
-            MenuDocument(name,aliases,e.getBoolean("sold_out"),e.optString("category"),price)
+            val document=NativeMenuDocuments.parse(e)
+            require(seen.add(document.name))
+            document
         }
-        return NativeMenu(json.getString("store_name"),json.getInt("menu_version"),items)
+        return NativeMenu(json.getString("store_name"),json.getInt("menu_version"),NativeMenuDocuments.canonicalAliases(items))
     }
 }

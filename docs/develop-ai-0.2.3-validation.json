@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-06",
+  "branch": "develop_ai",
+  "base_frontend_commit": "e8ada931a4ddec5a295ba64672be5773dfef957b",
+  "ai_commit": "d9938b2f3e999b093942c4a882264a3fbc2ca8b8",
+  "version_name": "0.2.3",
+  "version_code": 13,
+  "application_id": "com.sonkkeut",
+  "variant": "release",
+  "abi": [
+    "arm64-v8a"
+  ],
+  "min_sdk": 26,
+  "target_sdk": 35,
+  "apk": "sonkkeut-develop-ai-0.2.3.apk",
+  "bytes": 65209545,
+  "sha256": "4290329b840491509793a9841dafeee7276e184e0e497a7ee06305733d6df407",
+  "model_files_sha256": {
+    "assets/sonkkeut/hand_landmarker.task": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",
+    "assets/sonkkeut/m1_screen_corners_int8.onnx": "9121f7de3b200231d022790ac6345497ab4d32022a3280889e0e616e750cdfce",
+    "assets/sonkkeut/m1r_corner_refiner.onnx": "331f3073d5fad57a79485c5b18f03cea94bbd6e782d2bd0fb0905b0986b33c50",
+    "assets/sonkkeut/m2_screen_elements_int8.onnx": "8c30a754567fb9b4e1fceba5533cc103a429aaeb2bd1deabfd93137f7fba1a4f",
+    "assets/sonkkeut/m3_kiosk_rec_v2.onnx": "80d6462d5cc0d0a189ecd810940df484902594a11087a4592e8a8dec47d87145"
+  },
+  "model_weights_unchanged_from_0_2_2": true,
+  "apk_new_menu_knowledge_code_present": true,
+  "unit_tests": {
+    "passed": 83,
+    "failed": 0,
+    "new_knowledge_tests": 9
+  },
+  "android_initial_suite": {
+    "total": 21,
+    "passed": 19,
+    "failed": 1,
+    "skipped": 1,
+    "failure": "cameraRunsAndPauseResumeDoesNotCrash: initial camera frames timeout after 45000 ms (NativeAppTest.kt:26)",
+    "skip": "Whisper speechFixture missing"
+  },
+  "android_focused_rerun": {
+    "camera_resume_passed": 1,
+    "failed": 0
+  },
+  "android_verified_unique_tests": {
+    "passed": 20,
+    "skipped": 1
+  },
+  "server_menu_check": {
+    "http": 200,
+    "menu_version": 1,
+    "items": 3,
+    "related_terms_provided": false,
+    "description_provided": false
+  },
+  "qa_layout_changed": false,
+  "merged": false,
+  "unverified": [
+    "real server knowledge recommendation data (not provided)",
+    "actual Korean microphone Whisper inference",
+    "real kiosk full ordering",
+    "physical ultrawide and TalkBack user testing"
+  ],
+  "source_files_sha256": {
+    "app/src/main/AndroidManifest.xml": "5eb93e49128ab3712a58b0e74f529213b4a5dd635ce47c0ac5561573f52d30ff",
+    "app/src/main/java/com/sonkkeut/app/AccessibilitySettings.kt": "55ab298d920111a62506dcc5970aa8ab8367c97727819b6c7161027593271aaa",
+    "app/src/main/java/com/sonkkeut/app/AnnouncementGate.kt": "c6ca9ec3aa4f4780ae10a787a9628614f04930527921f83cc36e9825e89fdbc5",
+    "app/src/main/java/com/sonkkeut/app/BackendAddress.kt": "d21d27506ed187c11ddfd4a05ee613e8b6580d33a93ab56e12835dd7d337ede8",
+    "app/src/main/java/com/sonkkeut/app/BackendHealthClient.kt": "51f853571fd8a7eb457c84d97e47a24c0b7650bc748b6f1502bd7de9909499c1",
+    "app/src/main/java/com/sonkkeut/app/GuidanceOutput.kt": "b60c226c949bcb1dd9e4a8690d14d26c324583696d3a72730f1fbc6eda206f7f",
+    "app/src/main/java/com/sonkkeut/app/GuidanceSession.kt": "7d01c5eb37f83c08303924d90b027a0ccb66891aa5fe2f3faa586cb1ca063f45",
+    "app/src/main/java/com/sonkkeut/app/MainActivity.kt": "5cd22af01d7c60cdd9ab8d49a695c70e98ef0b9ad0c9c87338a248d03ae4e0ef",
+    "app/src/main/java/com/sonkkeut/app/MainCameraLayout.kt": "c61fd6b63b44293aa5ac05e0b76ed2932909e4afdb0d3a1d8456e5508a1d170e",
+    "app/src/main/java/com/sonkkeut/app/NativeAppModel.kt": "1827ea259377d9346111d7197c6e18e8c4f24ce91f99d437b3e7f29750c44b0a",
+    "app/src/main/java/com/sonkkeut/app/NativeHandPrompt.kt": "a6bf18a8b9d03837e88081c25bef89a1bf9a0083500c174a5bf2644f113489f9",
+    "app/src/main/java/com/sonkkeut/app/NativeHomeControls.kt": "799aa947aec57a2f83304fcf6d43dee8ea7360bdaa772fb3dbf1af74aa2f34a3",
+    "app/src/main/java/com/sonkkeut/app/NativeMenuClient.kt": "9cd5f7d7616933b33bbc587dea3d8771b1c7da0729aacf3d0587611a5b781e3b",
+    "app/src/main/java/com/sonkkeut/app/NativeMenuDocuments.kt": "d4b2dc393ce450af47692ff1df17ee2a5c28a92d708ee0dae5655a9429a58510",
+    "app/src/main/java/com/sonkkeut/app/NativeMenuRecommendations.kt": "a6419630f6caf9a4fda37613c8db029570c764e96db232730ef5641927a51681",
+    "app/src/main/java/com/sonkkeut/app/NativeOrder.kt": "2ff1eef28a40eecb3acbb44fc8ae3e47c1a59ceb340be7b109167c2e1fb7dd3d",
+    "app/src/main/java/com/sonkkeut/app/NativeOrderConfirmation.kt": "91c4c1dedf980e76095b5c3a68ad666adf9b0480621883e46835ad404de0f13b",
+    "app/src/main/java/com/sonkkeut/app/NativeOrderFlow.kt": "3f7dd110874295bc5fdee4c33b1e1831131a18b1885199dc3cdec1758c73143c",
+    "app/src/main/java/com/sonkkeut/app/NativeUsageReporter.kt": "86a28ecac8480e08b211155c18c8d5721a59e5af63310b0d0d1f0dc94372e538",
+    "app/src/main/java/com/sonkkeut/app/SyntheticReplay.kt": "4337b58d27c862a3fa83f09bb6b7bb20374bd104d2c517dc92ff7f77c837205b",
+    "app/src/main/java/com/sonkkeut/app/VisualElements.kt": "126a42cf6594c87d08da5ecafbe93a8564d71b7478de3de1b32494b3caa3c55b",
+    "app/src/main/java/com/sonkkeut/app/VisualGeometry.kt": "809c2aaea04fa0f9cff37bcd6fa2c93110382fb26a4e779e2ccd324b6c18ec17",
+    "app/src/main/java/com/sonkkeut/app/VisualGuidanceCore.kt": "9f006a90b83e7427cec0e1c146507dbcb93334ada6c489c666854ffb32f129f2",
+    "app/src/main/java/com/sonkkeut/app/VisualTracking.kt": "73d0cf25dea0e25a32ac5a11f7ff2a49762730a347cea86d238fcf3b057ed3f9",
+    "app/src/main/java/com/sonkkeut/app/VisualVerification.kt": "d3c10215596e272931e980d89fd2e0159925500e4c4480ff1c114e945de25db1",
+    "app/src/main/res/drawable/icon_foreground.xml": "0d2c36be435491cefc4ac331198dac47d28a5be93c3c5548e2e623ca1e02627e",
+    "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "64544fb967aa99d5a36959f0ec2b147e9481b55e30670d733f47feae6e804226",
+    "app/src/main/res/values/icon_colors.xml": "d56b0cd4058e706db395fcf2155769d3d41893009ec93cb8836fc8bb0cdfc5de",
+    "app/src/main/res/values/strings.xml": "e2b3cbcfd2e59aaf997f03a3481aba6e32969f71b306dcf2adb4ae6c66416877",
+    "app/src/main/res/values/themes.xml": "d38b1b1ff3bf895325d1c7771d6c10edca5357175325f191dfaee2a1f3a6072b",
+    "app/build.gradle.kts": "0cb7ec1ec63a4ea3aeba6f96fdc1124f8dd49a03b1f88ee352b9be59043877bb"
+  },
+  "release_apk_tests": {
+    "total": 4,
+    "passed": 3,
+    "failed": 1,
+    "failure": "initial camera frames timeout after 45000 ms in cameraRunsAndPauseResumeDoesNotCrash",
+    "log": "artifacts/develop-ai-0.2.3-release-smoke.txt"
+  },
+  "installation": "0.2.2 to release 0.2.3 update installed successfully; installed version 0.2.3/code13 verified",
+  "signing": "development keystore; verified; certificate SHA256 fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "camera_baseline_comparison": {
+    "apk": "sonkkeut-develop-ux-0.2.2.apk",
+    "same_four_tests": {
+      "passed": 3,
+      "failed": 1
+    },
+    "same_failure_reproduced": true,
+    "log": "artifacts/develop-ai-0.2.3-baseline-camera-comparison.txt",
+    "conclusion": "Same sequential-test initial camera frame timeout occurs in prior 0.2.2; cause unresolved, recorded for existing QA; no camera/layout changes in this AI work"
+  },
+  "release_camera_only_rerun": {
+    "passed": 1,
+    "failed": 0,
+    "log": "artifacts/develop-ai-0.2.3-release-camera-only.txt"
+  },
+  "frontend_source": "develop_ai changes based on e8ada93; exact pre-commit application/build file hashes recorded below; release manifest adds committed revision"
+}
