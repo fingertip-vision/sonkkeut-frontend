@@ -22,7 +22,17 @@ android {
             keyPassword = "android"
         }
     }
-    buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("debug"); isMinifyEnabled = false } }
+    buildTypes {
+        getByName("release") { signingConfig = signingConfigs.getByName("debug"); isMinifyEnabled = false }
+        getByName("debug") {
+            // Opt-in install target for integration QA; preserves the deployed app and its data.
+            if (providers.gradleProperty("uiIntegrationSandbox").orNull == "true") {
+                applicationIdSuffix = ".uiupdate"
+                versionNameSuffix = "-ui-stage2"
+                manifestPlaceholders["debugAppLabel"] = "손끝길 통합 · 2차"
+            } else manifestPlaceholders["debugAppLabel"] = "@string/app_name"
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }

@@ -74,6 +74,12 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     var screen by mutableStateOf<RecognizedScreen?>(null); private set
     var frame by mutableStateOf<Map<String,Any?>>(emptyMap()); private set
     var frames by mutableIntStateOf(0); private set
+    // Presentation provenance only. No changes to native guidance / speech decisions.
+    internal var visualFrameAt by mutableLongStateOf(0L); private set
+    internal var visualFrameAttempt by mutableIntStateOf(-1); private set
+    internal var visualPressAt by mutableLongStateOf(0L); private set
+    internal var visualPressAttempt by mutableIntStateOf(-1); private set
+    internal val visualTargetId get() = lastTarget
     var found by mutableStateOf(false); private set
     var order by mutableStateOf<NativeOrder?>(null); private set
     var rawSpeech by mutableStateOf(""); private set
@@ -237,6 +243,8 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         main.post { if (!closed && !paused && page=="home" && cameraGeneration.get()==token) accept(result) }
     }
     private fun accept(value: Map<String,Any?>) {
+        visualFrameAt=SystemClock.elapsedRealtime()
+        visualFrameAttempt=targetAttempt // Capture BEFORE accept can choose a different target.
         frames++; frame=value; found=value["found"]==true
         if(!found) {
             if(lastTarget!=null) { cameraGeneration.incrementAndGet(); flow.recover(); flowState=flow.state; lastTarget=null; screen=null; commands.execute { SonkkeutEngine.clearTarget(); SonkkeutEngine.requestKeyframe() }; announce("화면을 놓쳤습니다. 손을 멈추고 키오스크 전체 화면을 다시 비춰 주세요.") }
@@ -266,7 +274,10 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         } }
         json.optJSONObject("event")?.takeIf { !recording && !speechBusy && (manualGuidance || flow.state in listOf("S4","S5")) && lastTarget!=null &&
             (it.optString("target_id")==lastTarget || it.optString("target_id").isBlank() && it.optString("type")!="press") }?.let { event ->
-            if (event.optString("type")=="press" && event.optString("target_id")==lastTarget) { flow.press(); targetReached=((SystemClock.elapsedRealtime()-targetStartedAt)/1000.0).coerceIn(0.0,600.0) }
+            if (event.optString("type")=="press" && event.optString("target_id")==lastTarget) {
+                visualPressAt=SystemClock.elapsedRealtime(); visualPressAttempt=targetAttempt
+                flow.press(); targetReached=((SystemClock.elapsedRealtime()-targetStartedAt)/1000.0).coerceIn(0.0,600.0)
+            }
             vibeHz=event.optDouble("vibe_hz",0.0)
             val text=event.optString("speak")
             if (text.isNotBlank()) { targetHints=(targetHints+1).coerceAtMost(1000); announce(text,event.optString("type")=="press") }

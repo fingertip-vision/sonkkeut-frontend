@@ -6,6 +6,8 @@
 
 후속 `develop_ui_update`는 이 디자인 커밋에서 시작하는 기능 통합 작업 브랜치입니다. 배포된 제품의 기준은 원본 `develop_ui/ux`의 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`이며, 기존 AI·카메라·주문·음성 동작을 기준으로 통합합니다.
 
+`develop_ui_update`의 [1차 통합](docs/uiux-integration/stage1/README.md)은 새 시작 화면과 기존 CameraX 진입, [2차 통합](docs/uiux-integration/stage2/README.md)은 주문·음성·손끝 안내 디자인 연결입니다. 검증 APK는 `com.sonkkeut.uiupdate`로 별도 설치합니다. 설정·복구·접근성 전반은 후속 3차 범위입니다. 아래 공개 0.2.4 APK와 현재 로컬 통합 APK를 구분하세요.
+
 **현재 개발 진행 중입니다.** 시각장애인·저시력 사용자가 키오스크 화면을 카메라로 비추고, 주문할 메뉴를 말하거나 입력하면 화면 인식과 손끝 이동 안내로 주문을 돕는 앱입니다. 결제는 키오스크에서 직접 진행합니다. 실제 키오스크에서 혼자 주문을 끝낼 수 있는지는 아직 현장 검증이 필요합니다.
 
 ## 현재 UI 수정 · develop_ui
@@ -85,7 +87,7 @@ AI 모델 가중치 개선이나 LLM·재료/알레르기 추론은 이번 변�
 
 ## 개발 환경과 브랜치
 
-현재 UI QA 작업 브랜치는 **develop_ui**이며, 포크·원본의 동기화된 `develop_ux` 커밋 `f3ffc97`에서 시작했습니다. AI 기준은 `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`을 유지합니다. 사용자 승인에 따라 포크 `develop_ui`에서 커밋·푸시하고 원본의 새 `develop_ui/ux` 브랜치로 PR·병합합니다.
+0.2.4 제품 UI QA 작업은 **develop_ui**에서 진행했으며, 포크·원본의 동기화된 `develop_ux` 커밋 `f3ffc97`에서 시작했습니다. AI 기준은 `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`을 유지합니다. 해당 제품 작업은 포크 `develop_ui`에서 원본 `develop_ui/ux`로 PR·병합했습니다. 현재 디자인·기능 통합 작업 브랜치는 상단에 설명한 **develop_ui_update**입니다.
 
 **Kotlin + Jetpack Compose + CameraX**를 사용합니다. Android Studio에서 저장소의 **루트 폴더**를 여세요. 루트 `app/`가 현재 Android 앱이며 `android/`와 기존 TypeScript 파일은 이전 구현 참고 자료입니다.
 
