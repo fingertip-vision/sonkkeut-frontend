@@ -34,9 +34,10 @@ class NativeAppTest {
     }
     @Test fun nativeTypingRequiresConfirmationAndReturnsToCamera() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
-        compose.onNodeWithText("메뉴·설정").performClick()
-        compose.onNodeWithText("음성·직접 입력 주문").performClick()
+        compose.runOnUiThread { model().start(); model().toggleTextOrder() }
         val name=model().menu.first { !it.soldOut }.name
+        val before=model().frames
+        compose.waitUntil(45000) { model().frames>=before+2 }
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("$name 한 잔 포장해 주세요")
         compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
@@ -44,5 +45,18 @@ class NativeAppTest {
         compose.onNodeWithText("네, 이 주문으로 안내 시작").performScrollTo().performClick()
         compose.onNodeWithText("메뉴·설정").assertExists()
         assertFalse(model().paused)
+    }
+    @Test fun settingsPauseGuidanceAndServerIsLockedUntilEnd() {
+        compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
+        compose.runOnUiThread { model().start() }
+        compose.onNodeWithText("메뉴·설정").performClick()
+        assertTrue(model().paused)
+        val old=model().server
+        compose.runOnUiThread { model().saveConnection("https://example.com","ABC123") }
+        assertEquals(old,model().server)
+        compose.onNodeWithText("주문 안내 종료").performScrollTo().performClick()
+        assertFalse(model().running); assertNull(model().order); assertNull(model().screen)
+        compose.onAllNodes(hasScrollAction()).assertCountEquals(0)
+        compose.onAllNodesWithText("손끝길 시작").assertCountEquals(2)
     }
 }

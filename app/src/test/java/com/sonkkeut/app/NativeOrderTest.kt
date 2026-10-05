@@ -83,4 +83,33 @@ class NativeOrderTest {
         val value=RecognizedScreen.from(json); assertFalse(value.elements.single().readable)
         val flow=NativeOrderFlow(); flow.submit(NativeOrderParser.parse("아메리카노",menu)); flow.accept(value); assertNull(flow.confirm())
     }
+    @Test fun returningFromSettingsRequiresFreshScreenBeforeAnotherTarget() {
+        val flow=NativeOrderFlow(); flow.submit(NativeOrderParser.parse("아메리카노",menu))
+        flow.accept(screen("menu",5,element("old","아메리카노","menu"))); flow.confirm()
+        flow.paused=true; flow.recover(); flow.paused=false
+        assertNull(flow.screen); assertNull(flow.plan())
+        assertNull(flow.accept(screen("menu",5,element("old","아메리카노","menu"))))
+        assertEquals("new",flow.accept(screen("menu",6,element("new","아메리카노","menu")))?.target?.id)
+    }
+    @Test fun confirmationCanWaitForACompletelyNewCameraFrame() {
+        val flow=NativeOrderFlow(); val intent=NativeOrderParser.parse("아메리카노",menu)
+        flow.accept(screen("menu",1,element("old","아메리카노","menu"))); flow.recover(); flow.submit(intent)
+        assertNull(flow.confirm()); assertNull(flow.action)
+        assertEquals("new",flow.accept(screen("menu",2,element("new","아메리카노","menu")))?.target?.id)
+    }
+    @Test fun progressCountsVerifiedAddsOnlyAndRecoveryRetainsDuplicateAddGuard() {
+        val flow=NativeOrderFlow(); flow.submit(NativeOrderParser.parse("아메리카노 두 잔",menu))
+        flow.accept(screen("option",1,element("title","아메리카노","menu"),element("add","담기"),count=0)); flow.confirm(); flow.press()
+        assertEquals(0,flow.completedQuantity()); flow.recover()
+        assertEquals(0,flow.completedQuantity())
+        flow.accept(screen("menu",2,element("m","아메리카노","menu"),count=1))
+        assertEquals(1,flow.completedQuantity())
+    }
+    @Test fun offlineDetectedMenuKeepsOnlyReadableMenuNamesAndPrices() {
+        val value=RecognizedScreen.from(JSONObject("""{"screen_type":"menu","keyframe_id":1,"elements":[{"id":"a","kind":"menu","text":"아메리카노 4,500원","price":4500,"box":[0,0,1,1],"conf":0.9,"conf_ocr":0.9},{"id":"b","kind":"menu","text":"불확실","box":[0,0,1,1],"conf":0.9,"conf_ocr":0.6},{"id":"c","kind":"button","text":"주문하기","box":[0,0,1,1],"conf":0.9}]}"""))
+        assertEquals(listOf("아메리카노"),value.detectedMenu().map { it.name })
+        assertEquals(4500,value.detectedMenu().single().price)
+        assertEquals(4500,NativeOrderParser.parse("아메리카노 한 잔",value.detectedMenu()).items.single().price)
+        assertTrue(value.copy(type="option").detectedMenu().isEmpty())
+    }
 }

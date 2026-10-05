@@ -14,7 +14,7 @@ export function visualGuidance(state: AppState, event: GuidanceEvent | undefined
   if (state === 'SE') {return {symbol: '!', title: '다시 확인이 필요해요', detail: '손을 멈추고 안내 계속을 눌러 주세요'};}
   if (!found) {return {symbol: '▣', title: '키오스크 화면을 비춰 주세요', detail: '화면 전체가 보이도록 휴대폰 각도를 조절해 주세요'};}
   if (state !== 'S4' || !targetId || !event || (event.target_id && event.target_id !== targetId)) {
-    return {symbol: '◎', title: state === 'S3' ? '주문을 입력하고 확인해 주세요' : '화면을 확인하고 있어요', detail: '안내 문장이 아래에 함께 표시됩니다'};
+    return {symbol: '◎', title: state === 'S3' ? '주문을 말씀해 주세요' : '화면을 확인하고 있어요', detail: '안내 문장이 아래에 함께 표시됩니다'};
   }
   if (event.type === 'no_hand') {return {symbol: '☝', title: '손끝을 보여 주세요', detail: '키오스크 화면 앞에서 손을 들어 주세요'};}
   if (event.type === 'point') {return {symbol: '☝', title: '검지만 펴 주세요', detail: '다른 손가락은 접고 검지 끝을 보여 주세요'};}

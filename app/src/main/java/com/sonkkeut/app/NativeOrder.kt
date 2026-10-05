@@ -66,14 +66,15 @@ object NativeOrderParser {
     }
 }
 
-data class RecognizedElement(val id: String, val kind: String, val text: String, val box: List<Double>, val readable: Boolean)
+data class RecognizedElement(val id: String, val kind: String, val text: String, val box: List<Double>, val readable: Boolean, val price: Int? = null)
 data class RecognizedScreen(val type: String, val keyframe: Int, val elements: List<RecognizedElement>, val cartCount: Int?, val total: Int?, val selected: List<String>?) {
     companion object {
         fun from(json: JSONObject): RecognizedScreen {
             val array = json.getJSONArray("elements")
             val elements = (0 until array.length()).map { i -> val e = array.getJSONObject(i); val b = e.getJSONArray("box")
                 RecognizedElement(e.getString("id"),e.getString("kind"),e.optString("text"), (0 until b.length()).map { b.getDouble(it) },
-                    e.optDouble("conf", 0.0) >= .8 && !e.optBoolean("uncertain") && (!e.has("conf_ocr") || e.optDouble("conf_ocr", 0.0) >= .8)) }
+                    e.optDouble("conf", 0.0) >= .8 && !e.optBoolean("uncertain") && (!e.has("conf_ocr") || e.optDouble("conf_ocr", 0.0) >= .8),
+                    if(e.has("price") && !e.isNull("price")) e.getInt("price").takeIf { it in 0..10000000 } else null) }
             fun integer(name: String) = if (json.has(name) && !json.isNull(name)) json.getInt(name) else null
             val selected = json.optJSONArray("selected")?.let { a -> (0 until a.length()).map { a.getString(it) } }
             return RecognizedScreen(json.getString("screen_type"),json.getInt("keyframe_id"),elements,integer("cart_count"),integer("total_price"),selected)
@@ -81,5 +82,7 @@ data class RecognizedScreen(val type: String, val keyframe: Int, val elements: L
     }
     fun reading() = elements.sortedWith(compareBy<RecognizedElement> { it.box.getOrElse(1) { 0.0 } }.thenBy { it.box.getOrElse(0) { 0.0 } })
         .joinToString(". ") { if (it.readable) it.text.ifBlank { "읽기 불확실" } else "읽기 불확실" }
+    fun detectedMenu(): List<MenuDocument> = if(type!="menu") emptyList() else elements.filter { it.kind=="menu" && it.readable && it.text.isNotBlank() }
+        .map { MenuDocument(it.text.replace(Regex("[\\d,]+\\s*원"),"").trim(),price=it.price) }.filter { it.name.isNotBlank() }.distinctBy { it.name }
 }
 data class NativeAction(val target: RecognizedElement, val expect: Map<String, Any?>, val role: String, val message: String, val value: String? = null)

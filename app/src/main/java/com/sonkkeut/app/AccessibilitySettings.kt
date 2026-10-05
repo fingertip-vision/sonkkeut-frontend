@@ -22,6 +22,10 @@ internal class AccessibilityPreferences(context: Context) {
     var voice by mutableStateOf(storage.getBoolean("voice", true)); private set
     var vibration by mutableStateOf(storage.getBoolean("vibration", true)); private set
     var speed by mutableIntStateOf(storage.getInt("speed", 1).coerceIn(0, 2)); private set
+    var lowVision by mutableStateOf(storage.getBoolean("lowVision", true)); private set
+    var wideCamera by mutableStateOf(storage.getBoolean("wideCamera", true)); private set
+    fun target(value: Boolean) { lowVision=value; storage.edit().putBoolean("lowVision",value).apply() }
+    fun camera(value: Boolean) { wideCamera=value; storage.edit().putBoolean("wideCamera",value).apply() }
     fun text(value: Int) { textSize = value; storage.edit().putInt("textSize", value).apply() }
     fun theme(value: Boolean) { light = value; storage.edit().putBoolean("light", value).apply() }
     fun speech(value: Boolean) { voice = value; storage.edit().putBoolean("voice", value).apply() }
@@ -84,13 +88,16 @@ internal fun AccessibilitySettings(onBack: () -> Unit) {
         HorizontalDivider()
         SettingChoices("글자 크기", listOf("기본", "크게", "더 크게"), preferences.textSize, preferences::text)
         SettingChoices("화면 색상", listOf("어둡게", "밝게"), if (preferences.light) 1 else 0) { preferences.theme(it == 1) }
+        SettingToggle("목표 버튼 크게 강조", preferences.lowVision, preferences::target)
+        SettingToggle("가까이서 화면 전체 담기", preferences.wideCamera, preferences::camera)
+        Text("지원 기기는 넓은 후면 렌즈·최소 줌을 사용합니다. 미지원 또는 연결 실패 시 기본 렌즈로 전환합니다.")
         SettingToggle("음성 안내", preferences.voice, preferences::speech)
         SettingToggle("진동 안내", preferences.vibration, preferences::haptic)
         SettingChoices("안내 속도", listOf("느리게", "보통", "빠르게"), preferences.speed, preferences::rate)
         Text("휴대폰의 글자 크기 설정도 반영해요", style = MaterialTheme.typography.bodyLarge)
         Text("자동 음성을 꺼도 ‘다시 듣기’는 사용할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
         HorizontalDivider()
-        Text("카메라 화면은 전체 프레임을 표시합니다. 메인에는 카메라·안내 중지·재안내를 두고, 주문과 설정은 별도 화면에서 이용합니다.", style = MaterialTheme.typography.bodyLarge)
+        Text("카메라 화면은 전체 프레임을 표시합니다. 주문 입력·확인은 카메라와 함께 표시하며, 설정을 열면 안내가 멈춥니다. 메인으로 돌아온 뒤 안내 계속을 눌러 주세요.", style = MaterialTheme.typography.bodyLarge)
     }
 }
 

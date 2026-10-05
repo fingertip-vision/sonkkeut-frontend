@@ -53,7 +53,8 @@ class NativeOrderFlow {
         enter("S2", "다음 화면을 확인합니다")
         // Re-plan only after a fresh screen arrives; never re-use a pre-press snapshot.
     }
-    fun recover() { action = null; enter("S2", "화면을 다시 확인합니다") }
+    fun completedQuantity() = (order?.items?.sumOf { it.qty } ?: 0) - remaining.sum()
+    fun recover() { action = null; screen = null; enter("S2", "화면을 다시 확인합니다") }
     fun plan(): NativeAction? {
         if (paused || state in listOf("S5","S6") || !confirmed) return null
         val intent = order ?: return null; val current = screen ?: run { enter("S2","카메라로 키오스크 화면을 비춰 주세요."); return null }
