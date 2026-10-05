@@ -1,0 +1,29 @@
+appId: com.sonkkeut.tooling
+name: Signal studio representative screens
+---
+- openLink: "sonkkeut-design://preview?scene=home"
+- assertVisible: "손끝길 시작"
+- takeScreenshot: signal-home
+- tapOn: "손끝길 시작"
+- assertVisible: "촬영 준비"
+- takeScreenshot: signal-ready
+- tapOn: "설정"
+- tapOn: "화면 분석 중"
+- assertVisible: "(?s)메뉴를.*"
+- takeScreenshot: signal-analyzing
+- tapOn: "설정"
+- tapOn: "손끝 안내"
+- assertVisible: "(?s)오른쪽으로.*"
+- assertVisible: "재안내"
+- takeScreenshot: signal-guidance
+- tapOn: "주문 보기"
+- assertVisible: "주문 확인"
+- tapOn: "닫기"
+- tapOn: "설정"
+- tapOn: "안내 중지"
+- assertVisible: "카메라 다시 시작"
+- takeScreenshot: signal-recovery
+- tapOn: "카메라 다시 시작"
+- assertVisible: "촬영 준비"
+- tapOn: "종료"
+- assertVisible: "손끝길 시작"
