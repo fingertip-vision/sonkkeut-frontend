@@ -1,9 +1,9 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {AppState, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {AppState, BackHandler, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Camera, useCameraDevice, useCameraFormat} from 'react-native-vision-camera';
 import {Sonkkeut, useSonkkeut} from 'react-native-sonkkeut';
-import type {GuidanceEvent, ModelDownloadProgress, SpeechModelStatus} from 'react-native-sonkkeut';
+import type {GuidanceEvent, ModelDownloadProgress, ScreenStructure, SpeechModelStatus} from 'react-native-sonkkeut';
 import type {Action, MenuItem} from './src/domain';
 import {isReadableElement, OrderFlow, parseOrder, screenReading} from './src/domain';
 import {clearUsage, DEFAULT_MENU, enqueueUsage, flushUsage, validateBaseUrl} from './src/backend';
@@ -13,12 +13,13 @@ import {restoreSettings} from './src/settings';
 import {useBackendConnection} from './src/useBackendConnection';
 import type {ServerConfig} from './src/useBackendConnection';
 import {orderProgress, readableRows, targetOverlay, visualGuidance} from './src/guidance';
-import {BrandMark, KioskArtwork} from './src/Artwork';
-import {colors, styles} from './src/theme';
+import {createTheme, ThemeContext, useTheme} from './src/theme';
+import type {ThemeName} from './src/theme';
+import {cameraView} from './src/camera';
 
-const labels = {S0: '준비', S1: '화면 탐색', S2: '화면 인식', S3: '주문 입력', S4: '손끝 유도', S5: '결과 확인', S6: '안내 완료', SE: '다시 확인'};
 function Button({title, onPress, disabled = false, secondary = false}: {title: string; onPress: () => void; disabled?: boolean; secondary?: boolean}) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => [styles.button, secondary && styles.secondaryButton, disabled && styles.disabled, pressed && styles.pressed]}><Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text></Pressable>;
+  const {styles} = useTheme();
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => [styles.button, secondary && styles.secondaryButton, disabled && styles.disabled, pressed && styles.pressed]}><Text style={[styles.buttonText, secondary && styles.secondaryText, disabled && styles.disabledText]}>{title}</Text></Pressable>;
 }
 
 export default function App() {
@@ -45,15 +46,23 @@ export default function App() {
   const [guidance, setGuidance] = useState<{action: Action; event: GuidanceEvent}>();
   const [captions, setCaptions] = useState<string[]>([]);
   const [verification, setVerification] = useState<{text: string; success: boolean}>();
-  const [reader, setReader] = useState(false);
+  const [readerScreen, setReaderScreen] = useState<ScreenStructure>();
   const [cameraError, setCameraError] = useState(false);
   const [statsEnabled, setStatsEnabled] = useState(false);
   const statsEnabledRef = useRef(statsEnabled);
   statsEnabledRef.current = statsEnabled;
   const [lowVision, setLowVision] = useState(true);
+  const [themeName, setThemeName] = useState<ThemeName>('dark');
+  const theme = useMemo(() => createTheme(themeName), [themeName]);
+  const {colors, styles} = theme;
+  const [wideCamera, setWideCamera] = useState(true);
+  const [wideFailed, setWideFailed] = useState(false);
+  const savedSettings = useRef(restoreSettings(undefined));
+  const settingsWrites = useRef<Promise<void>>(Promise.resolve());
+  const [settingsMessage, setSettingsMessage] = useState('');
   const [preview, setPreview] = useState({width: 1, height: 1});
   const [settings, setSettings] = useState(false);
-  const [page, setPage] = useState<'home' | 'settings'>('home');
+  const [page, setPage] = useState<'home' | 'menu' | 'order' | 'reader' | 'settings'>('home');
   const [speechSettings, setSpeechSettings] = useState(false);
   const [storeCode, setStoreCode] = useState<string>();
   const startedAt = useRef(Date.now());
@@ -71,13 +80,16 @@ export default function App() {
   const appliedMenuVersion = useRef<number>();
   const screenSeen = useRef(false);
   const stepScreen = useRef('unknown');
-  const device = useCameraDevice('back');
+  const orderPrompted = useRef(false);
+  const standardCamera = useCameraDevice('back');
+  const widerCamera = useCameraDevice('back', {physicalDevices: ['ultra-wide-angle-camera']});
+  const {device, zoom, ultraWide} = cameraView(standardCamera, widerCamera, wideCamera && !wideFailed);
   const format = useCameraFormat(device, [{videoResolution: {width: 1280, height: 720}}, {fps: 15}]);
   const refresh = () => redraw(n => n + 1);
   const caption = (text: string) => setCaptions(current => current[0] === text ? current : [text, ...current].slice(0, 5));
-  const ai = useSonkkeut({active: running && permission && !paused && foreground && flow.state !== 'S6',
+  const ai = useSonkkeut({active: running && page === 'home' && permission && !paused && foreground && flow.state !== 'S6',
     onResult: result => {
-      if (!running || flow.paused || flow.state === 'S6') {return;}
+      if (!running || page !== 'home' || flow.paused || flow.state === 'S6') {return;}
       if (result.found) {screenSeen.current = true; return;}
       if (!screenSeen.current) {return;}
       screenSeen.current = false; generation.current++; applied.current = undefined; setGuidance(undefined);
@@ -86,7 +98,7 @@ export default function App() {
       flow.enter(flow.confirmed ? 'SE' : 'S1', '화면을 놓쳤습니다. 손을 멈추고 휴대폰을 다시 화면 쪽으로 들어 주세요.'); refresh();
     },
     onScreen: screen => {
-      if (!running || flow.paused) {return;}
+      if (!running || page !== 'home' || flow.paused) {return;}
       flow.acceptScreen(screen);
       if (!flow.intent && menuSource.current !== 'server' && screen.screen_type === 'menu') {
         const detected = screen.elements.filter(e => e.kind === 'menu' && e.text && isReadableElement(e))
@@ -96,10 +108,13 @@ export default function App() {
           setMenu(current => [...current.filter(item => !detected.some(found => found.name === item.name)), ...detected]);
         }
       }
+      if (flow.state === 'S3' && !flow.confirmed && !orderPrompted.current) {
+        orderPrompted.current = true; openPage('order'); Sonkkeut.say('화면을 찾았습니다. 주문 입력 화면에서 주문을 알려 주세요.');
+      }
       refresh();
     },
     onEvent: event => {
-      if (!running || flow.paused) {return;}
+      if (!running || page !== 'home' || flow.paused) {return;}
       if (flow.state === 'S4' && flow.action && (!event.target_id || event.target_id === flow.action.target.id)) {
         setGuidance({action: flow.action, event});
         if (event.speak) {caption(event.speak);}
@@ -110,7 +125,7 @@ export default function App() {
       }
     },
     onVerdict: verdict => {
-      if (!running || flow.paused || flow.state !== 'S5') {return;}
+      if (!running || page !== 'home' || flow.paused || flow.state !== 'S5') {return;}
       const target = applied.current?.target;
       steps.current.push({screen_type: stepScreen.current, target_kind: target?.kind ?? 'unknown', result: verdict.result,
         reach_s: reached.current, hints: hints.current, fail_reason: verdict.result === 'success' ? undefined : verdict.reason.slice(0, 60)});
@@ -162,7 +177,9 @@ export default function App() {
     AsyncStorage.getItem('settings').then(raw => {
       if (!mounted) {return;}
       const saved = restoreSettings(raw ? JSON.parse(raw) : undefined);
+      savedSettings.current = saved;
       setServer(saved.server); setCode(saved.code); setStatsEnabled(saved.statsEnabled);
+      setThemeName(saved.theme); setWideCamera(saved.wideCamera); setLowVision(saved.lowVision);
       setServerConfig({server: saved.server, code: saved.code});
       statsEnabledRef.current = saved.statsEnabled === true;
     }).catch(() => {if (mounted) {setServerConfig({server: BACKEND_URL, code: DEFAULT_STORE_CODE});}});
@@ -191,7 +208,7 @@ export default function App() {
   }, [connection.status]);
 
   useEffect(() => {
-    if (!running || paused || !foreground) {return;}
+    if (!running || page !== 'home' || paused || !foreground) {return;}
     if (flow.message !== announced.current) {
       announced.current = flow.message;
       caption(flow.message);
@@ -239,8 +256,9 @@ export default function App() {
       flow.enter('SE', '카메라 권한이 필요합니다. 설정에서 권한을 허용해 주세요.'); Sonkkeut.say(flow.message); refresh(); return;
     }
     if (!ai.ready) {flow.enter('SE', ai.error || '모델을 준비하고 있습니다. 잠시 후 다시 시작해 주세요.'); refresh(); return;}
-    setPermission(true); setRunning(true); setSettings(false); setPaused(false); setCameraError(false); setReader(false); setGuidance(undefined); setVerification(undefined); setCaptions([]); flow.paused = false;
+    setPermission(true); setRunning(true); setPage('home'); setSettings(false); setPaused(false); setCameraError(false); setReaderScreen(undefined); setGuidance(undefined); setVerification(undefined); setCaptions([]); flow.paused = false;
     generation.current++; flow.reset(); applied.current = undefined; screenSeen.current = false; announced.current = ''; setOrder('');
+    orderPrompted.current = false;
     flow.enter('S1', '휴대폰을 가슴 높이에서 화면 쪽으로 들어 주세요');
     startedAt.current = Date.now(); recorded.current = false; steps.current = []; refresh();
     Sonkkeut.requestKeyframe();
@@ -252,12 +270,13 @@ export default function App() {
       setGuidance(undefined); setVerification(undefined);
       flow.submit(parseOrder(text, menu)); setOrder(text); refresh();
     } catch (e) {flow.intent = undefined; flow.confirmed = false; flow.remaining = []; flow.enter('S3', (e as Error).message); refresh();}
+    Sonkkeut.say(flow.message);
   }
   async function listen(provider: 'custom' | 'system' = 'custom') {
     const token = ++generation.current;
     setListening(true);
-    try {const text = await Sonkkeut.listen(provider); if (token === generation.current && !flow.paused) {submit(text);}}
-    catch (e) {if (token === generation.current && !flow.paused) {flow.enter('S3', (e as Error).message || '다시 말씀해 주세요'); refresh();}}
+    try {const text = await Sonkkeut.listen(provider); if (token === generation.current && page === 'order' && foreground) {submit(text);}}
+    catch (e) {if (token === generation.current && page === 'order' && foreground) {flow.enter('S3', (e as Error).message || '다시 말씀해 주세요'); refresh();}}
     finally {if (token === generation.current) {setListening(false);}}
   }
   async function downloadSpeech() {
@@ -277,161 +296,198 @@ export default function App() {
       const base = validateBaseUrl(server);
       const selectedCode = code.trim().toUpperCase();
       if (selectedCode && !/^[A-Z2-9]{6}$/.test(selectedCode)) {throw new Error('매장 코드는 영문·숫자 6자리입니다');}
-      await AsyncStorage.setItem('settings', JSON.stringify({server: base, code: selectedCode, statsEnabled: statsEnabledRef.current}));
-      setServer(base); setCode(selectedCode); setServerConfig({server: base, code: selectedCode}); setPage('home'); reconnect();
-      flow.enter('S0', '설정을 저장했습니다. 서버에 자동으로 연결합니다.'); refresh();
-    } catch (e) {flow.enter('SE', (e as Error).message); refresh();}
+      await persistSettings({server: base, code: selectedCode});
+      setServer(base); setCode(selectedCode); setServerConfig({server: base, code: selectedCode}); reconnect();
+      setSettingsMessage('설정을 저장했습니다. 서버에 자동으로 연결합니다.');
+    } catch (e) {setSettingsMessage((e as Error).message);}
   }
   function pause() {
     const next = !paused; setPaused(next); flow.paused = next;
     generation.current++; setListening(false); setGuidance(undefined);
-    if (next) {Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();}
-    else {applied.current = undefined; flow.recover(); Sonkkeut.requestKeyframe(); refresh();}
+    if (next) {applied.current = undefined; Sonkkeut.clearTarget(); Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();}
+    else {resumeGuidance();}
   }
   function end() {
     record(false); generation.current++; Sonkkeut.clearTarget(); Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();
-    flow.reset(); applied.current = undefined; setListening(false); screenSeen.current = false; setGuidance(undefined); setVerification(undefined); setReader(false); setCameraError(false);
+    flow.reset(); applied.current = undefined; setListening(false); screenSeen.current = false; setGuidance(undefined); setVerification(undefined); setReaderScreen(undefined); setCameraError(false);
     flow.enter('S0', '손끝길을 시작합니다'); setRunning(false); setPage('home'); refresh();
   }
   const target = !paused && !cameraError && (flow.state === 'S4' || flow.state === 'S5') && ai.result?.found ? flow.action?.target : undefined;
   const overlay = targetOverlay(ai.result?.target_image_box, ai.result?.frame_size, preview);
   const guide = visualGuidance(flow.state, guidance?.action === flow.action ? guidance?.event : undefined, target?.id, paused, ai.result?.found === true);
   const progress = orderProgress(flow.intent, flow.remaining);
-  const rows = readableRows(ai.result?.found ? flow.screen : undefined);
+  const rows = readableRows(readerScreen);
   const connectionStatus = connectionMatches ? connection.status : 'checking';
   const online = connectionStatus === 'online';
   function retryCamera() {
     generation.current++; applied.current = undefined; setGuidance(undefined); setCameraError(false); setPaused(false); flow.paused = false;
     flow.recover(); Sonkkeut.requestKeyframe(); refresh();
   }
-  function readScreen() {
-    setReader(!reader);
-    if (ai.result?.found && flow.screen && !paused) {Sonkkeut.say(screenReading(flow.screen));}
+  function persistSettings(patch: Partial<ReturnType<typeof restoreSettings>>) {
+    savedSettings.current = {...savedSettings.current, ...patch};
+    const value = JSON.stringify(savedSettings.current);
+    const write = settingsWrites.current.catch(() => {}).then(() => AsyncStorage.setItem('settings', value));
+    settingsWrites.current = write;
+    return write;
   }
-  const phase = flow.confirmed ? 2 : flow.state === 'S3' ? 1 : 0;
-  return <SafeAreaView style={styles.root}>
-    <StatusBar barStyle="dark-content" backgroundColor={colors.background}/>
+  function savePreference(patch: Partial<ReturnType<typeof restoreSettings>>) {
+    persistSettings(patch).catch(() => setSettingsMessage('설정을 저장하지 못했습니다. 다시 선택해 주세요.'));
+  }
+  function openPage(next: typeof page) {
+    if (next !== 'home' && running) {
+      generation.current++; applied.current = undefined; flow.paused = true; setPaused(true); setListening(false); setGuidance(undefined);
+      Sonkkeut.clearTarget(); Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();
+    }
+    setPage(next);
+  }
+  function resumeGuidance() {
+    generation.current++; applied.current = undefined; setGuidance(undefined); flow.screen = undefined; screenSeen.current = false;
+    flow.paused = false; setPaused(false); announced.current = ''; flow.recover(); Sonkkeut.requestKeyframe(); refresh();
+  }
+  function confirmOrder() {
+    flow.screen = undefined; flow.paused = false; flow.confirm(); setPage('home'); resumeGuidance();
+  }
+  function readScreen() {
+    const screen = ai.result?.found ? flow.screen : undefined;
+    setReaderScreen(screen); openPage('reader');
+    Sonkkeut.say(screen ? screenReading(screen) : '아직 읽은 글자가 없습니다. 메인 화면에서 키오스크 전체를 비춰 주세요.');
+  }
+  function repeatGuidance() {
+    Sonkkeut.say(paused ? '안내가 멈췄습니다. 안내 계속 버튼을 누르면 화면을 다시 확인합니다.' : cameraError ? flow.message : guidance?.action === flow.action && guidance?.event.speak ? guidance.event.speak : flow.message);
+  }
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (page !== 'home') {generation.current++; setListening(false); Sonkkeut.cancelListening(); setPage('home'); return true;}
+      if (running) {openPage('menu'); return true;}
+      return false;
+    });
+    return () => sub.remove();
+  });
+  const statusText = online ? '● 서버 연결됨' : connectionStatus === 'checking' ? '자동 연결 확인 중' : connectionStatus === 'error' ? '매장 설정 확인 필요' : connectionMatches && connection.menu ? '오프라인 · 저장 메뉴 사용' : '오프라인 · 연결 재시도';
+  const mainCaption = cameraError ? flow.message : paused || flow.state === 'S5' || flow.state === 'S6' ? guide.detail : verification && flow.state === 'SE' ? verification.text : guidance?.action === flow.action && guidance?.event.speak ? guidance.event.speak : !ai.result?.found && ai.result?.hint && ['S1', 'S2'].includes(flow.state) ? ai.result.hint : flow.message;
+  return <ThemeContext.Provider value={theme}><SafeAreaView style={styles.root}>
+    <StatusBar barStyle={themeName === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.background}/>
     <View style={styles.header}>
-      <View style={styles.brand}><BrandMark/><View><Text accessibilityRole="header" style={styles.title}>손끝길</Text><Text style={styles.subtitle}>손끝으로 찾는 쉬운 주문</Text></View></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={running ? '안내 설정' : page === 'home' ? '서버·매장 설정' : '홈으로'} disabled={!serverConfig} accessibilityState={{disabled: !serverConfig}} style={styles.headerButton} onPress={() => {
-        if (running) {setSettings(!settings);} else {setPage(page === 'home' ? 'settings' : 'home'); setSettings(page === 'home');}
-      }}><Text style={styles.headerButtonText}>{running ? '설정' : page === 'home' ? '설정' : '홈으로'}</Text></Pressable>
+      <Text accessibilityRole="header" style={styles.title}>{page === 'home' ? '손끝길' : page === 'menu' ? '메뉴' : page === 'order' ? '주문 확인' : page === 'reader' ? '화면 글자' : '환경 설정'}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={page === 'home' ? '메뉴·설정 열기' : '메인 화면으로'} disabled={!serverConfig} accessibilityState={{disabled: !serverConfig}} style={styles.headerButton} onPress={() => {openPage(page === 'home' ? 'menu' : 'home');}}><Text style={styles.headerButtonText}>{page === 'home' ? '메뉴·설정' : '메인으로'}</Text></Pressable>
     </View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-      <View style={styles.connectionCard}>
-        <View style={styles.row}><Text style={[styles.connectionTitle, online && styles.successText]}>{online ? '● 서버 연결됨' : connectionStatus === 'checking' ? '◌ 자동 연결 확인 중' : connectionStatus === 'error' ? '○ 매장 설정 확인 필요' : '○ 오프라인 안내 가능'}</Text><Text style={styles.networkLabel}>{connection.network}</Text></View>
-        {(!online || page === 'settings' || running && connection.menu && connection.menu.menu_version !== appliedMenuVersion.current) && <Text accessibilityLiveRegion="polite" style={styles.connectionDetails}>{connectionMatches ? connection.message : '저장된 서버와 매장 메뉴를 확인하고 있습니다'}</Text>}
-        {online && <Text accessibilityLiveRegion="polite" style={styles.connectionDetails}>{running ? '매장 메뉴와 연결되어 있어요' : connection.menu?.store_name || '기본 시연 메뉴'}</Text>}
-        {connectionMatches && connection.modelVersion && connection.modelVersion !== MODEL_VERSION && <Text style={styles.small}>서버 모델 정보 {connection.modelVersion} · 앱 모델 {MODEL_VERSION}</Text>}
-        {running && connection.menu && (connection.menu.store_code !== storeCode || connection.menu.menu_version !== appliedMenuVersion.current) && <Text style={styles.small}>새 매장 메뉴는 안내 종료 후 적용됩니다.</Text>}
-        {(connectionStatus === 'retrying' || connectionStatus === 'error') && <Button title="연결 다시 확인" secondary onPress={reconnect}/>}
-      </View>
-      {!running && page === 'home' && <>
-        <View style={styles.hero}>
-          <View style={styles.heroRow}><View style={styles.heroCopy}><Text style={styles.eyebrow}>당신의 주문 길잡이</Text><Text style={styles.heroTitle}>더 쉬운 주문,{'\n'}손끝길과 함께.</Text></View><KioskArtwork/></View>
-          <Button title={ai.ready ? '손끝길 시작' : '모델 준비 중'} onPress={() => {start().catch(e => {flow.enter('SE', String(e)); refresh();});}} disabled={!ai.ready || !serverConfig}/>
-          <Text style={styles.heroNote}>키오스크를 비추면 버튼까지 안내해 드려요.</Text>
-        </View>
-        {(ai.error || flow.state === 'SE') && <View style={styles.warningCard}><Text accessibilityLiveRegion="polite" style={styles.body}>{ai.error || flow.message}</Text><Button title="앱 권한 설정 열기" secondary onPress={() => {Linking.openSettings();}}/></View>}
-        <View style={styles.sectionIntro}><Text accessibilityRole="header" style={styles.sectionTitle}>세 단계면 충분해요</Text><Text style={styles.small}>누른 결과를 확인하며 차근차근 안내합니다.</Text></View>
-        <View style={styles.steps}>{['화면\n비추기', '주문\n확인하기', '손끝\n따라가기'].map((label, index) => <View key={label} style={styles.stepTile}><Text style={styles.stepNumber}>0{index + 1}</Text><Text style={styles.stepLabel}>{label}</Text></View>)}</View>
-        <View style={styles.card}>
-          <View style={styles.row}><View style={styles.storeIcon}><Text accessible={false} style={styles.storeIconText}>⌂</Text></View><View style={styles.flex}><Text style={styles.small}>현재 매장 메뉴</Text><Text accessibilityRole="header" style={styles.storeName}>{menuSource.current === 'server' ? connection.menu?.store_name || '저장된 매장 메뉴' : menuSource.current === 'detected' ? '카메라에서 읽은 메뉴' : '시연용 기본 메뉴 · 실제 화면을 확인해 주세요'}</Text></View><Text style={styles.storeCode}>{storeCode || '시연'}</Text></View>
-          {menu.slice(0, 8).map(item => <View key={item.name} style={styles.menuRow}><Text style={styles.body}>{item.name}{item.sold_out ? ' · 품절' : ''}</Text><Text style={styles.menuPrice}>{item.price != null ? `${item.price.toLocaleString()}원` : '금액 확인 필요'}</Text></View>)}
-          {menu.length > 8 && <Text style={styles.small}>외 {menu.length - 8}개 메뉴</Text>}
-        </View>
-        <View style={styles.privacy}><Text accessible={false} style={styles.privacyIcon}>✓</Text><Text style={styles.small}>영상과 자체 음성 인식은 기기 안에서 처리해요.</Text></View>
-        <Button title={modelDownloading ? '음성 모델 다운로드 확인' : speechModel?.ready ? '음성 주문 준비 완료' : '말로 주문할 준비하기'} secondary onPress={() => {setPage('settings'); setSpeechSettings(true); setSettings(false);}}/>
-      </>}
-      {running && <>
-        <View style={styles.stageRow}>{['화면 찾기', '주문 확인', '손끝 안내'].map((label, index) => <View key={label} style={[styles.stage, index === phase && styles.stageActive]}><Text style={[styles.stageText, index === phase && styles.stageActiveText]}>{index + 1} · {label}</Text></View>)}</View>
-        <View style={styles.guidanceCard}>
-          <Text style={styles.eyebrow}>{paused ? '잠시 쉬어 가세요' : labels[flow.state]}</Text>
-          <View style={styles.guideHeading}><View style={styles.directionBox}><Text style={styles.direction} accessible={false}>{guide.symbol}</Text></View><View style={styles.guideText}><Text accessibilityLiveRegion="polite" style={styles.guideTitle}>{guide.title}</Text><Text style={styles.small}>{guide.detail}</Text></View></View>
-          {target && <Text style={styles.targetName}>목표 버튼 · {target.text || '버튼 이름 확인 중'}</Text>}
-          {(!paused || cameraError) && <View style={styles.captionBlock}><Text style={styles.small}>현재 안내</Text><Text accessibilityLiveRegion="polite" style={styles.message}>{listening ? '주문을 듣고 처리하고 있습니다…' : ai.error || (cameraError ? flow.message : !ai.result?.found && ai.result?.hint && ['S1', 'S2'].includes(flow.state) ? ai.result.hint : flow.message)}</Text></View>}
-        </View>
-        {device && permission && !cameraError && <View style={styles.preview} onLayout={e => setPreview(e.nativeEvent.layout)}>
-          <Camera style={StyleSheet.absoluteFill} device={device} format={format} fps={15} pixelFormat="yuv" resizeMode="cover" isActive={ai.ready && !paused && foreground && flow.state !== 'S6'} frameProcessor={ai.frameProcessor} onError={() => {
-            generation.current++; applied.current = undefined; setGuidance(undefined); setListening(false); Sonkkeut.cancelListening(); Sonkkeut.clearTarget(); Sonkkeut.silence(); flow.screen = undefined; flow.paused = true; setPaused(true); setCameraError(true);
-            flow.enter('SE', '카메라를 열지 못했습니다. 다른 카메라 앱을 닫고 다시 시도해 주세요.'); refresh();
-          }}/>
-          {!ai.result?.found && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{[styles.cornerTL, styles.cornerTR, styles.cornerBL, styles.cornerBR].map((corner, index) => <View key={index} style={[styles.cameraCorner, corner]}/>)}</View>}
+    {page === 'home' ? <>
+      <View style={styles.connection}><Text numberOfLines={1} style={styles.connectionText}>{statusText}{!running && connectionMatches && connection.menu ? ` · ${connection.menu.store_name}` : ''}</Text></View>
+      <View style={styles.main} testID="main-no-scroll">
+        <View style={styles.preview} testID="portrait-camera" onLayout={e => setPreview(e.nativeEvent.layout)}>
+          {running && device && permission && !cameraError ? <Camera style={StyleSheet.absoluteFill} device={device} zoom={zoom} format={format} fps={15} pixelFormat="yuv" resizeMode="contain" outputOrientation="preview" isActive={ai.ready && !paused && foreground && flow.state !== 'S6'} frameProcessor={ai.frameProcessor} onError={() => {
+            generation.current++; applied.current = undefined; setGuidance(undefined); setListening(false); Sonkkeut.cancelListening(); Sonkkeut.clearTarget(); Sonkkeut.silence(); flow.screen = undefined;
+            if (ultraWide && !wideFailed) {setWideFailed(true); flow.recover(); Sonkkeut.requestKeyframe(); refresh(); return;}
+            flow.paused = true; setPaused(true); setCameraError(true); flow.enter('SE', '카메라를 열지 못했습니다. 다른 카메라 앱을 닫고 다시 시도해 주세요.'); refresh();
+          }}/> : <View style={styles.placeholder}>
+            {!running && <View accessible={false} style={styles.portraitFrame}><View style={styles.frameLine}/><View style={styles.frameLine}/><View style={styles.frameLine}/></View>}
+            <Text style={styles.placeholderTitle}>{!running ? '키오스크 전체를\n세로로 비춰 주세요' : cameraError ? '카메라를 다시 열어 주세요' : '후면 카메라를 확인해 주세요'}</Text>
+            <Text style={styles.placeholderBody}>{!running ? '시작한 뒤 주문을 확인하면\n손끝까지 안내해 드립니다.' : flow.message}</Text>
+          </View>}
           {lowVision && target && overlay && <View pointerEvents="none" style={[styles.outline, overlay]}/>}
-          <View pointerEvents="none" style={styles.previewBadge}><Text style={styles.previewBadgeText}>{paused ? '카메라 일시 정지' : ai.result?.found ? `화면 인식됨${target ? ' · 노란 테두리가 목표' : ''}` : '화면 전체가 보이게 비춰 주세요'}</Text></View>
-        </View>}
-        {cameraError && <Button title="카메라 다시 열기" onPress={retryCamera}/>}
-        {!device && <Text style={styles.body}>사용 가능한 후면 카메라가 없습니다. 앱 권한과 카메라 상태를 확인해 주세요.</Text>}
-        {verification && <View style={verification.success ? styles.successCard : styles.warningCard}><Text accessibilityLiveRegion="polite" style={styles.body}>{verification.success ? '✓ 결과 확인' : '다시 확인 필요'} · {verification.text}</Text></View>}
-        <View style={styles.row}><View style={styles.flex}><Button title="화면 글자 보기·읽기" secondary onPress={readScreen}/></View><View style={styles.flex}><Button title="안내 다시 듣기" secondary onPress={() => Sonkkeut.say(flow.message)} disabled={paused}/></View></View>
-        {reader && <View style={styles.card}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>카메라에서 읽은 화면</Text>
-          <Text style={styles.small}>위에서 아래 순서입니다. 읽기 불확실한 글자는 안내 목표로 사용하지 않습니다.</Text>
-          {rows.length ? rows.map(row => <View key={row.id} style={styles.readerRow}><Text style={[styles.body, !row.readable && styles.uncertainText]}>{row.text}</Text></View>) : <Text style={styles.body}>읽은 글자가 아직 없어요. 화면 전체를 비춘 뒤 다시 확인해 주세요.</Text>}
-          <Button title="화면 글자 닫기" secondary onPress={() => setReader(false)}/>
-        </View>}
+        </View>
+        <View style={styles.guidance}>
+          {running ? <>
+            <View style={styles.guideHeading}><View accessible={false} style={styles.directionBox}><Text style={styles.direction}>{guide.symbol}</Text></View><View style={styles.guideText}><Text accessibilityLiveRegion="polite" numberOfLines={2} style={styles.guideTitle}>{guide.title}</Text></View></View>
+            <Text accessibilityLiveRegion="polite" numberOfLines={2} style={styles.caption}>{target ? `목표 · ${target.text || '버튼'} / ` : ''}{mainCaption}</Text>
+          </> : <Text accessibilityLiveRegion="polite" numberOfLines={3} style={styles.caption}>{ai.error || (flow.state === 'SE' ? flow.message : ai.ready ? '화면을 찾으면 주문 입력 화면이 열립니다. 추가 기능은 위의 메뉴·설정에서 선택하세요.' : 'AI 모델을 준비하고 있습니다. 잠시 기다려 주세요.')}</Text>}
+        </View>
+      </View>
+      <View style={styles.footer}>
+        {!running ? <View style={styles.flex}><Button title={ai.ready ? '손끝길 시작' : '모델 준비 중'} disabled={!ai.ready || !serverConfig} onPress={() => {start().catch(e => {flow.enter('SE', String(e)); refresh();});}}/></View> : <>
+          <View style={styles.flex}><Button title={cameraError ? '카메라 다시 열기' : flow.state === 'S6' ? '안내 종료' : paused || flow.state === 'SE' ? '안내 계속' : '안내 중지'} onPress={cameraError ? retryCamera : flow.state === 'S6' ? end : flow.state === 'SE' && !paused ? resumeGuidance : pause}/></View>
+          <View style={styles.flex}><Button title="재안내" secondary onPress={repeatGuidance}/></View>
+        </>}
+      </View>
+    </> : <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      {page === 'menu' && <>
+        {running && <Text style={styles.small}>메뉴를 열면 안내가 멈춥니다. 메인 화면에서 ‘안내 계속’을 눌러 주세요.</Text>}
+        <Button title={running ? flow.confirmed ? '확인한 주문 보기' : '주문 입력 열기' : '손끝길 시작'} onPress={() => {
+          if (!running) {start().catch(e => {flow.enter('SE', String(e)); refresh();}); return;}
+          orderPrompted.current = true; if (!flow.confirmed) {flow.enter('S3', '메뉴·수량·온도와 매장 또는 포장을 알려 주세요.');} openPage('order');
+        }} disabled={!ai.ready || !serverConfig}/>
+        {running && <Button title="화면 글자 보기·읽기" secondary onPress={readScreen}/>}
+        <Button title="화면·카메라·음성 설정" secondary onPress={() => openPage('settings')}/>
+        {running && <Button title="주문 안내 종료" secondary onPress={end}/>}
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{statusText}</Text>
+          <Text style={styles.body}>{connectionMatches ? connection.message : '저장된 서버와 매장 메뉴를 확인하고 있습니다'}</Text>
+          <Text style={styles.body}>{menuSource.current === 'server' ? running ? '안내 시작 시 확인한 매장 메뉴' : connection.menu?.store_name || '저장된 매장 메뉴' : menuSource.current === 'detected' ? '카메라에서 읽은 메뉴' : '시연용 기본 메뉴 · 실제 화면을 확인해 주세요'}</Text>
+          <Text style={styles.small}>매장 코드 · {storeCode || '시연'}</Text>
+          {running && connection.menu && (connection.menu.store_code !== storeCode || connection.menu.menu_version !== appliedMenuVersion.current) && <Text style={styles.small}>새 매장 메뉴는 안내 종료 후 적용됩니다.</Text>}
+          {menu.map(item => <View key={item.name} style={styles.menuRow}><Text style={styles.body}>{item.name}{item.sold_out ? ' · 품절' : ''}</Text><Text style={styles.small}>{item.price != null ? `${item.price.toLocaleString()}원` : '금액 확인 필요'}</Text></View>)}
+          <Button title="연결 다시 확인" secondary onPress={reconnect}/>
+        </View>
+        {flow.state === 'SE' && <View style={[styles.card, styles.warning]}><Text style={styles.sectionTitle}>직원분, 키오스크 주문을 도와주세요.</Text><Text style={styles.body}>{flow.message}</Text></View>}
+        {captions.length > 0 && <View style={styles.card}><Text accessibilityRole="header" style={styles.sectionTitle}>최근 안내 자막</Text>{captions.map((text, index) => <Text key={`${index}-${text}`} style={styles.body}>{index === 0 ? '최근 · ' : '이전 · '}{text}</Text>)}</View>}
+        <Text style={styles.small}>영상·OCR·자체 음성 인식은 기기 안에서 처리합니다. 결제는 키오스크에서 직접 진행합니다.</Text>
+      </>}
+      {page === 'order' && <>
+        <Text style={styles.small}>{flow.confirmed ? '확인한 주문은 안내 도중 바꾸지 않습니다.' : '여기서는 카메라 안내가 멈춰 있습니다. 주문을 확인하면 메인 화면으로 돌아갑니다.'}</Text>
         {flow.intent && <View style={styles.card}>
-          <View style={styles.row}><Text accessibilityRole="header" style={styles.sectionTitle}>{flow.confirmed ? '확인한 주문' : '주문이 맞나요?'}</Text><Text style={styles.small}>{flow.confirmed ? `${progress.completed}/${progress.total}개 담기 확인` : `${progress.total}개`}</Text></View>
-          {flow.confirmed && <View accessibilityLabel={`${progress.total}개 중 ${progress.completed}개 담기 확인`} style={styles.progressTrack}><View style={[styles.progressFill, {width: `${progress.total ? progress.completed / progress.total * 100 : 0}%`}]}/></View>}
-          {flow.intent.items.map((item, index) => <View key={`${item.menu}-${index}`} style={styles.orderRow}><Text style={styles.body}>{item.menu} · {item.qty}개</Text><Text style={styles.small}>{[item.options.temp === 'hot' ? '따뜻한' : item.options.temp === 'ice' ? '아이스' : '온도 선택 없음', item.options.size, flow.confirmed ? `담기 ${item.qty - (flow.remaining[index] ?? item.qty)}/${item.qty}` : undefined].filter(Boolean).join(' · ')}</Text></View>)}
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{flow.confirmed ? '확인한 주문' : '주문이 맞나요?'}</Text>
+          {flow.intent.items.map((item, index) => <View key={`${item.menu}-${index}`} style={styles.menuRow}><Text style={styles.body}>{item.menu} · {item.qty}개</Text><Text style={styles.small}>{[item.options.temp === 'hot' ? '따뜻한' : item.options.temp === 'ice' ? '아이스' : '온도 선택 없음', item.options.size, flow.confirmed ? `담기 ${item.qty - (flow.remaining[index] ?? item.qty)}/${item.qty}` : undefined].filter(Boolean).join(' · ')}</Text></View>)}
           <Text style={styles.body}>이용 방법 · {flow.intent.dine || '매장 / 포장 확인 필요'}</Text>
           <Text style={styles.small}>{progress.amount != null ? `기본 메뉴 예상 금액 ${progress.amount.toLocaleString()}원 · 옵션 추가금 별도` : '금액은 키오스크에서 확인해 주세요'}</Text>
-          {!flow.confirmed && <Button title="네, 이 주문으로 안내 시작" onPress={() => {flow.confirm(); refresh();}} disabled={paused}/>}
+          {flow.confirmed ? <Text style={styles.body}>{progress.total}개 중 {progress.completed}개 담기 확인</Text> : <Button title="네, 이 주문으로 안내 시작" onPress={confirmOrder}/>}
         </View>}
-        {!flow.confirmed && flow.state !== 'S3' && <Button title="주문 입력 열기" secondary onPress={() => {flow.enter('S3', '메뉴·수량·온도와 매장 또는 포장을 알려 주세요.'); refresh();}} disabled={paused}/>}
-        {flow.state === 'S3' && <View style={styles.card}>
+        {!flow.confirmed && <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>어떤 메뉴를 주문할까요?</Text>
-          <Text style={styles.small}>예: 따뜻한 아메리카노 두 잔 포장해주세요</Text>
-          <Button title={listening ? '주문을 듣고 처리하고 있습니다' : '자체 모델로 말로 주문하기'} onPress={() => {listen();}} disabled={listening || paused || !speechModel?.ready}/>
-          {!speechModel?.ready && <><Text style={styles.small}>음성 모델을 받거나 아래에 주문을 입력해 주세요.</Text><Button title="음성 모델 준비 열기" secondary onPress={() => setSpeechSettings(true)}/></>}
-          <Button title="기기 음성 인식으로 주문하기" secondary onPress={() => {listen('system');}} disabled={listening || paused || modelDownloading || modelPreparing}/>
+          <Text accessibilityLiveRegion="polite" style={styles.body}>{flow.message}</Text>
+          <Button title={listening ? '주문을 듣고 처리하고 있습니다' : '자체 모델로 말로 주문하기'} onPress={() => {listen();}} disabled={listening || !speechModel?.ready || !foreground}/>
+          {!speechModel?.ready && <Button title="음성 모델 준비 열기" secondary onPress={() => {setSpeechSettings(true); openPage('settings');}}/>}
+          <Button title="기기 음성 인식으로 주문하기" secondary onPress={() => {listen('system');}} disabled={listening || modelDownloading || modelPreparing || !foreground}/>
           {listening && <Button title="음성 입력 취소" secondary onPress={() => {generation.current++; setListening(false); Sonkkeut.cancelListening();}}/>}
-          <TextInput accessibilityLabel="주문 문장" editable={!paused && !listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor="#677e70" value={order} onChangeText={setOrder} style={styles.input} multiline/>
-          <Button title="입력한 주문 확인" onPress={() => submit(order)} disabled={paused || listening || !order.trim()}/>
+          <TextInput accessibilityLabel="주문 문장" editable={!listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor={colors.muted} value={order} onChangeText={setOrder} style={styles.input} multiline/>
+          <Button title="입력한 주문 확인" onPress={() => submit(order)} disabled={listening || !order.trim()}/>
         </View>}
-        {flow.state === 'SE' && !cameraError && <View style={styles.warningCard}>
-          <Button title="화면 다시 확인" onPress={() => {Sonkkeut.clearTarget(); applied.current = undefined; setGuidance(undefined); flow.recover(); Sonkkeut.requestKeyframe(); refresh();}} disabled={paused}/>
-          <Text style={styles.help}>직원분, 키오스크 주문을 도와주세요.</Text>
-          <Text style={styles.small}>이 화면을 직원에게 보여줄 수 있어요.</Text>
-        </View>}
-        {captions.length > 0 && <View style={styles.card}><Text accessibilityRole="header" style={styles.sectionTitle}>최근 안내 자막</Text>{captions.map((text, index) => <Text key={`${index}-${text}`} style={index === 0 ? styles.body : styles.small}>{index === 0 ? '최근 · ' : '이전 · '}{text}</Text>)}</View>}
       </>}
-      {(!running && page === 'settings' || running && (settings || speechSettings)) && <>
-      <View style={styles.sectionIntro}><Text accessibilityRole="header" style={styles.sectionTitle}>내게 맞는 설정</Text><Text style={styles.small}>음성 주문과 화면 표시를 편하게 조절하세요.</Text></View>
-      <View style={styles.card}>
-        <View style={styles.row}><Text style={styles.body}>목표 버튼 크게 강조</Text><Switch accessibilityLabel="저시력 목표 버튼 강조" value={lowVision} trackColor={{false: '#ccd6ce', true: '#94bea6'}} thumbColor={lowVision ? colors.brand : '#fff'} onValueChange={setLowVision}/></View>
-        <Text style={styles.small}>음성 안내와 함께 큰 글자·방향 화살표·목표 테두리를 보여줍니다.</Text>
-        <Button title={speechSettings ? '음성 모델 설정 접기' : `음성 모델 ${speechModel?.ready ? '준비 완료' : '준비하기'}`} secondary onPress={() => setSpeechSettings(!speechSettings)}/>
-        {speechSettings && <>
-          <Text accessibilityLiveRegion="polite" style={styles.body}>{modelMessage}</Text>
-          {modelDownloading && modelProgress && <Text style={styles.small}>{modelProgress.stage === 'downloading' ? (modelProgress.total_bytes > 0 ? `다운로드 ${Math.min(100, Math.floor(modelProgress.bytes / modelProgress.total_bytes * 100))}%` : `다운로드 ${Math.floor(modelProgress.bytes / 1000000)}MB`) : '다운로드 파일 확인·모델 준비 중'}</Text>}
-          {!speechModel?.ready && !modelDownloading && <Button title={speechModel?.installed ? '음성 모델 준비 다시 시도' : '자체 음성 모델 받기 (약 485MB)'} onPress={() => {downloadSpeech();}} disabled={listening || modelPreparing || !speechModel}/>}
-          {modelDownloading && <Button title="모델 다운로드 중지" secondary onPress={() => Sonkkeut.cancelSpeechModelDownload()}/>}
-          <Text style={styles.small}>첫 다운로드에 인터넷과 약 1GB 여유 공간이 필요합니다. 준비 후 영상과 자체 음성 모델은 기기 안에서 처리합니다.</Text>
-        </>}
-        <Button title={settings ? '서버·매장 설정 접기' : '서버·매장 설정'} secondary onPress={() => setSettings(!settings)} disabled={!serverConfig}/>
-        {settings && <>
-          <Text style={styles.small}>기본 배포 서버에는 자동으로 연결됩니다. 다른 매장을 사용하려면 설정을 저장해 주세요.</Text>
-          <TextInput accessibilityLabel="백엔드 주소" editable={!running} autoCapitalize="none" autoCorrect={false} value={server} onChangeText={setServer} placeholder={BACKEND_URL} placeholderTextColor="#677e70" style={styles.input}/>
-          <TextInput accessibilityLabel="매장 코드" editable={!running} autoCapitalize="characters" autoCorrect={false} value={code} onChangeText={setCode} placeholder="매장 코드 6자리 (선택)" placeholderTextColor="#677e70" style={styles.input}/>
-          <Button title="설정 저장·자동 연결" onPress={() => {saveServer();}} disabled={running}/>
-          {running && <Text style={styles.small}>매장 설정은 주문 안내 종료 후 변경할 수 있습니다.</Text>}
-          <View style={styles.row}><Text style={styles.body}>익명 통계 전송</Text><Switch accessibilityLabel="익명 통계 전송 동의" value={statsEnabled} trackColor={{false: '#ccd6ce', true: '#94bea6'}} thumbColor={statsEnabled ? colors.brand : '#fff'} onValueChange={value => {
-            statsEnabledRef.current = value; setStatsEnabled(value);
+      {page === 'reader' && <>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>카메라에서 읽은 화면</Text>
+        <Text style={styles.small}>메뉴를 열기 전에 읽은 화면입니다. 위에서 아래 순서로 표시하며, 읽기 불확실한 글자는 안내 목표로 사용하지 않습니다.</Text>
+        <View style={styles.card}>{rows.length ? rows.map(row => <View key={row.id} style={styles.menuRow}><Text style={styles.body}>{row.text}</Text></View>) : <Text style={styles.body}>읽은 글자가 아직 없어요. 메인 화면에서 화면 전체를 비춘 뒤 다시 확인해 주세요.</Text>}</View>
+        <Button title="화면 글자 다시 읽기" onPress={() => Sonkkeut.say(readerScreen ? screenReading(readerScreen) : '아직 읽은 글자가 없습니다.')}/>
+      </>}
+      {page === 'settings' && <>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>내게 맞는 설정</Text>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>화면 테마</Text>
+          {(['dark', 'light'] as const).map(name => <Pressable key={name} accessibilityRole="radio" accessibilityLabel={name === 'dark' ? '어두운 테마' : '밝은 테마'} accessibilityState={{checked: themeName === name}} style={[styles.choice, themeName === name && styles.choiceSelected]} onPress={() => {setThemeName(name); savePreference({theme: name});}}><Text style={[styles.choiceText, themeName === name && styles.choiceSelectedText]}>{themeName === name ? '● ' : '○ '}{name === 'dark' ? '어두운 테마 · 기본' : '밝은 테마'}</Text></Pressable>)}
+          <Text style={styles.small}>기본은 남색 배경과 노란색 버튼입니다. 선택한 테마는 다음 실행에도 유지됩니다.</Text>
+          <View style={styles.row}><Text style={[styles.body, styles.flex]}>목표 버튼 크게 강조</Text><Switch accessibilityLabel="저시력 목표 버튼 강조" value={lowVision} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {setLowVision(value); savePreference({lowVision: value});}}/></View>
+        </View>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>세로 키오스크 촬영</Text>
+          <View style={styles.row}><Text style={[styles.body, styles.flex]}>가까이서 화면 전체 담기</Text><Switch accessibilityLabel="넓은 카메라 화각 사용" value={wideCamera} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {setWideCamera(value); setWideFailed(false); savePreference({wideCamera: value});}}/></View>
+          <Text style={styles.small}>{ultraWide ? '초광각 렌즈를 사용합니다.' : wideFailed ? '초광각을 열지 못해 기본 렌즈로 전환했습니다.' : '지원 기기는 초광각을 사용하고, 그 외에는 기본 렌즈를 사용합니다.'} 영상 가장자리를 자르지 않고 세로 영역에 전체를 표시합니다.</Text>
+          <Text style={styles.small}>화면 네 모서리가 모두 보이도록 휴대폰을 가슴 높이에 들고 각도와 거리를 조절해 주세요. 큰 키오스크는 조금 더 떨어져야 할 수 있습니다.</Text>
+        </View>
+        <View style={styles.card}>
+          <Button title={speechSettings ? '음성 모델 설정 접기' : `음성 모델 ${speechModel?.ready ? '준비 완료' : '준비하기'}`} secondary onPress={() => setSpeechSettings(!speechSettings)}/>
+          {speechSettings && <>
+            <Text accessibilityLiveRegion="polite" style={styles.body}>{modelMessage}</Text>
+            {modelDownloading && modelProgress && <Text style={styles.small}>{modelProgress.stage === 'downloading' ? modelProgress.total_bytes > 0 ? `다운로드 ${Math.min(100, Math.floor(modelProgress.bytes / modelProgress.total_bytes * 100))}%` : `다운로드 ${Math.floor(modelProgress.bytes / 1000000)}MB` : '다운로드 파일 확인·모델 준비 중'}</Text>}
+            {!speechModel?.ready && !modelDownloading && <Button title={speechModel?.installed ? '음성 모델 준비 다시 시도' : '자체 음성 모델 받기 (약 485MB)'} onPress={() => {downloadSpeech();}} disabled={listening || modelPreparing || !speechModel}/>}
+            {modelDownloading && <Button title="모델 다운로드 중지" secondary onPress={() => Sonkkeut.cancelSpeechModelDownload()}/>}
+            <Text style={styles.small}>첫 다운로드에 인터넷과 약 1GB 여유 공간이 필요합니다. 준비 후 기기 안에서 인식합니다.</Text>
+          </>}
+          <Button title={settings ? '서버·매장 설정 접기' : '서버·매장 설정'} secondary onPress={() => setSettings(!settings)} disabled={!serverConfig}/>
+          {settings && <>
+            <Text style={styles.small}>배포 서버에는 자동으로 연결됩니다. 다른 매장 설정은 주문 안내 종료 후 바꿀 수 있습니다.</Text>
+            <TextInput accessibilityLabel="백엔드 주소" editable={!running} autoCapitalize="none" autoCorrect={false} value={server} onChangeText={setServer} placeholder={BACKEND_URL} placeholderTextColor={colors.muted} style={styles.input}/>
+            <TextInput accessibilityLabel="매장 코드" editable={!running} autoCapitalize="characters" autoCorrect={false} value={code} onChangeText={setCode} placeholder="매장 코드 6자리 (선택)" placeholderTextColor={colors.muted} style={styles.input}/>
+            <Button title="설정 저장·자동 연결" onPress={() => {saveServer();}} disabled={running}/>
+          </>}
+          <View style={styles.row}><Text style={[styles.body, styles.flex]}>익명 통계 전송</Text><Switch accessibilityLabel="익명 통계 전송 동의" value={statsEnabled} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {
+            statsEnabledRef.current = value; setStatsEnabled(value); savePreference({statsEnabled: value});
             if (!value) {clearUsage().catch(() => {});} else if (online) {flushUsage().catch(() => {});}
-            AsyncStorage.setItem('settings', JSON.stringify({...serverConfig, statsEnabled: value})).catch(() => {});
           }}/></View>
-          <Text style={styles.small}>영상·음성·주문 문장·위치·기기 식별자는 보내지 않습니다. 동의하면 단계별 성공 여부와 소요 시간만 전송합니다.</Text>
+          <Text style={styles.small}>영상·음성·주문 문장·위치·기기 식별자는 보내지 않습니다. 동의하면 성공 여부와 소요 시간만 전송합니다.</Text>
           <Button title="앱 권한 설정 열기" secondary onPress={() => {Linking.openSettings();}}/>
-        </>}
-        <Text style={styles.small}>앱 {APP_VERSION} · AI {MODEL_VERSION}</Text>
-      </View>
+          {settingsMessage !== '' && <Text accessibilityLiveRegion="polite" style={styles.body}>{settingsMessage}</Text>}
+          <Text style={styles.small}>앱 {APP_VERSION} · AI {MODEL_VERSION}</Text>
+        </View>
       </>}
-    </ScrollView>
-    {!running && <View style={styles.homeNav}>
-      <Pressable accessibilityRole="tab" accessibilityLabel="홈 화면" accessibilityState={{selected: page === 'home'}} style={[styles.navItem, page === 'home' && styles.navItemActive]} onPress={() => setPage('home')}><Text style={[styles.navText, page === 'home' && styles.navTextActive]}>홈</Text></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityLabel="환경 설정" accessibilityState={{selected: page === 'settings'}} style={[styles.navItem, page === 'settings' && styles.navItemActive]} onPress={() => setPage('settings')}><Text style={[styles.navText, page === 'settings' && styles.navTextActive]}>설정</Text></Pressable>
-    </View>}
-    {running && <View style={styles.footer}><View style={styles.flex}><Button title={paused ? '계속하기' : '일시 정지'} onPress={pause} disabled={cameraError || flow.state === 'S6'}/></View><View style={styles.flex}><Button title="주문 안내 종료" secondary onPress={end}/></View></View>}
-  </SafeAreaView>;
+    </ScrollView>}
+  </SafeAreaView></ThemeContext.Provider>;
 }

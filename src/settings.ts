@@ -10,5 +10,7 @@ export function restoreSettings(value: unknown) {
     server = BACKEND_URL;
     code = DEFAULT_STORE_CODE;
   }
-  return {server, code, statsEnabled: saved.statsEnabled === true};
+  return {server, code, statsEnabled: saved.statsEnabled === true,
+    theme: saved.theme === 'light' ? 'light' as const : 'dark' as const,
+    wideCamera: saved.wideCamera !== false, lowVision: saved.lowVision !== false};
 }

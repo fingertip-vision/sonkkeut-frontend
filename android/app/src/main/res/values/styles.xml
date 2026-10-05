@@ -4,10 +4,10 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
-        <item name="android:statusBarColor">#f7f8f4</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">#f7f8f4</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:statusBarColor">#080f1e</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#080f1e</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 </resources>

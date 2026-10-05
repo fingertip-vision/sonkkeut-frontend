@@ -36,8 +36,20 @@ test('order progress counts confirmed additions rather than navigation or option
   expect(orderProgress(intent, [1, 0]).completed).toBe(2);
   expect(orderProgress(intent, [0, 0]).completed).toBe(3);
 });
-test('target highlight follows cover scaling and rejects invalid native coordinates', () => {
-  expect(targetOverlay([100, 100, 200, 200], [400, 400], {width: 400, height: 200})).toEqual({left: 100, top: 0, width: 100, height: 100});
+test('target highlight follows contain scaling and rejects invalid native coordinates', () => {
+  expect(targetOverlay([100, 100, 200, 200], [400, 400], {width: 400, height: 200})).toEqual({left: 150, top: 50, width: 50, height: 50});
   expect(targetOverlay([NaN, 0, 100, 100], [400, 400], {width: 400, height: 200})).toBeUndefined();
   expect(targetOverlay([0, 0, 100, 100], [0, 0], {width: 400, height: 200})).toBeUndefined();
+});
+
+test('full portrait frames and their edge targets remain visible in different preview sizes', () => {
+  for (const preview of [{width: 400, height: 500}, {width: 400, height: 800}, {width: 320, height: 320}]) {
+    const full = targetOverlay([0, 0, 720, 1280], [720, 1280], preview)!;
+    expect(full.left).toBeGreaterThanOrEqual(0); expect(full.top).toBeGreaterThanOrEqual(0);
+    expect(full.left + full.width).toBeLessThanOrEqual(preview.width);
+    expect(full.top + full.height).toBeLessThanOrEqual(preview.height);
+    const edge = targetOverlay([620, 1180, 720, 1280], [720, 1280], preview)!;
+    expect(edge.left + edge.width).toBeCloseTo(full.left + full.width);
+    expect(edge.top + edge.height).toBeCloseTo(full.top + full.height);
+  }
 });

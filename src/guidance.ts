@@ -8,9 +8,10 @@ const directions = {
 };
 
 export function visualGuidance(state: AppState, event: GuidanceEvent | undefined, targetId: string | undefined, paused: boolean, found: boolean) {
-  if (paused) {return {symbol: 'Ⅱ', title: '안내가 멈췄어요', detail: '계속하기를 누르면 화면을 다시 확인합니다'};}
+  if (paused) {return {symbol: 'Ⅱ', title: '안내가 멈췄어요', detail: '안내 계속을 누르면 화면을 다시 확인합니다'};}
   if (state === 'S6') {return {symbol: '✓', title: '결제 화면에 도착했어요', detail: '키오스크에서 주문 내역을 확인하고 결제해 주세요'};}
   if (state === 'S5') {return {symbol: '●', title: '지금 누르세요', detail: '누른 뒤에는 손을 멈춰 주세요 · 화면 반응 확인 중'};}
+  if (state === 'SE') {return {symbol: '!', title: '다시 확인이 필요해요', detail: '손을 멈추고 안내 계속을 눌러 주세요'};}
   if (!found) {return {symbol: '▣', title: '키오스크 화면을 비춰 주세요', detail: '화면 전체가 보이도록 휴대폰 각도를 조절해 주세요'};}
   if (state !== 'S4' || !targetId || !event || (event.target_id && event.target_id !== targetId)) {
     return {symbol: '◎', title: state === 'S3' ? '주문을 입력하고 확인해 주세요' : '화면을 확인하고 있어요', detail: '안내 문장이 아래에 함께 표시됩니다'};
@@ -39,12 +40,12 @@ export function orderProgress(intent: Intent | undefined, remaining: number[]) {
   return {total, completed: Math.max(0, total - left), amount};
 }
 
-// Native target coordinates are pixels after rotation; preview uses resizeMode="cover".
+// Native target coordinates are pixels after rotation; contain preserves every frame edge.
 export function targetOverlay(box: number[] | null | undefined, frame: number[] | undefined, preview: {width: number; height: number}) {
   if (!box || box.length !== 4 || !frame || frame.length !== 2 || ![...box, ...frame, preview.width, preview.height].every(Number.isFinite)) {return undefined;}
   const [fw, fh] = frame;
   const [x1, y1, x2, y2] = box;
   if (fw <= 0 || fh <= 0 || preview.width <= 0 || preview.height <= 0 || x2 <= x1 || y2 <= y1) {return undefined;}
-  const scale = Math.max(preview.width / fw, preview.height / fh);
+  const scale = Math.min(preview.width / fw, preview.height / fh);
   return {left: x1 * scale + (preview.width - fw * scale) / 2, top: y1 * scale + (preview.height - fh * scale) / 2, width: (x2 - x1) * scale, height: (y2 - y1) * scale};
 }

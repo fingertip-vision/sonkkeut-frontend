@@ -1,24 +1,40 @@
+import {createContext, useContext} from 'react';
 import {StyleSheet} from 'react-native';
 
-export const colors = {background: '#f7f8f4', ink: '#193e34', muted: '#53675d', brand: '#176657', mint: '#e6f1e9', line: '#dce5dc'};
-export const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: colors.background}, content: {paddingHorizontal: 20, paddingTop: 6, paddingBottom: 24, gap: 20},
-  header: {paddingHorizontal: 22, paddingTop: 12, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12}, brand: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1},
-  title: {color: colors.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.8}, subtitle: {color: colors.muted, fontSize: 12, marginTop: 2}, headerButton: {minHeight: 44, minWidth: 60, borderRadius: 22, backgroundColor: '#eaf0e7', paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center'}, headerButtonText: {fontSize: 14, color: colors.ink, fontWeight: '700'},
-  connectionCard: {paddingVertical: 5, gap: 6}, connectionTitle: {color: '#795327', fontSize: 13, fontWeight: '700', flexShrink: 1}, successText: {color: colors.brand}, networkLabel: {color: colors.muted, fontSize: 12}, connectionDetails: {color: colors.muted, fontSize: 13, lineHeight: 20},
-  hero: {backgroundColor: colors.mint, borderRadius: 26, padding: 22, gap: 18, overflow: 'hidden'}, heroRow: {flexDirection: 'row', alignItems: 'center', gap: 6}, heroCopy: {flex: 1, gap: 12}, eyebrow: {color: colors.brand, fontSize: 13, fontWeight: '700', letterSpacing: 0.3}, heroTitle: {color: colors.ink, fontSize: 28, lineHeight: 38, letterSpacing: -1, fontWeight: '800'}, heroNote: {color: colors.muted, fontSize: 14, lineHeight: 22},
-  card: {backgroundColor: '#fff', borderRadius: 22, padding: 20, gap: 14, borderWidth: 1, borderColor: '#e8ede5'}, sectionTitle: {color: colors.ink, fontSize: 20, lineHeight: 28, fontWeight: '700', flexShrink: 1, letterSpacing: -0.4}, sectionIntro: {gap: 5},
-  storeIcon: {width: 42, height: 42, backgroundColor: colors.mint, borderRadius: 14, justifyContent: 'center', alignItems: 'center'}, storeIconText: {fontSize: 25, color: colors.brand}, storeName: {color: colors.ink, fontSize: 18, lineHeight: 26, fontWeight: '700'}, storeCode: {color: colors.brand, fontSize: 12, backgroundColor: colors.mint, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8},
-  steps: {flexDirection: 'row', gap: 12}, stepTile: {flex: 1, gap: 10, padding: 13, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e8ede5'}, stepNumber: {color: '#628573', fontSize: 13, fontWeight: '700'}, stepLabel: {fontSize: 15, fontWeight: '700', lineHeight: 23, color: colors.ink},
-  stageRow: {flexDirection: 'row', alignItems: 'center', gap: 8}, stage: {flex: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 7, backgroundColor: '#edf0e9', alignItems: 'center'}, stageActive: {backgroundColor: '#dceee2'}, stageText: {color: '#66766d', fontSize: 13, fontWeight: '600'}, stageActiveText: {color: colors.brand, fontWeight: '800'},
-  guidanceCard: {backgroundColor: '#fff', borderRadius: 22, padding: 20, gap: 16, borderWidth: 1, borderColor: '#dce8dd'}, guideHeading: {flexDirection: 'row', alignItems: 'center', gap: 14}, directionBox: {width: 62, minHeight: 64, borderRadius: 18, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center'}, direction: {color: '#fff', fontSize: 38, fontWeight: '700'}, guideText: {flex: 1, gap: 7}, guideTitle: {color: colors.ink, fontSize: 23, lineHeight: 32, letterSpacing: -0.6, fontWeight: '800'}, targetName: {color: colors.brand, backgroundColor: colors.mint, padding: 14, borderRadius: 14, fontSize: 20, lineHeight: 29, fontWeight: '700'}, captionBlock: {borderTopWidth: 1, borderColor: '#e8ede5', paddingTop: 13, gap: 7},
-  message: {color: colors.ink, fontSize: 18, lineHeight: 28}, body: {color: colors.ink, fontSize: 17, lineHeight: 27, flexShrink: 1}, small: {color: colors.muted, fontSize: 14, lineHeight: 22, flexShrink: 1},
-  button: {backgroundColor: colors.brand, minHeight: 58, paddingVertical: 15, paddingHorizontal: 16, borderRadius: 17, alignItems: 'center', justifyContent: 'center', flexShrink: 1}, buttonText: {color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center'}, secondaryButton: {backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccdcd0'}, secondaryText: {color: colors.ink, fontSize: 16}, disabled: {opacity: 0.45}, pressed: {opacity: 0.8},
-  input: {borderWidth: 1.5, borderColor: '#a9c3b3', backgroundColor: '#f9fbf7', borderRadius: 14, color: colors.ink, padding: 15, fontSize: 17, minHeight: 58}, row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12}, flex: {flex: 1},
-  preview: {height: 250, overflow: 'hidden', borderRadius: 22, backgroundColor: '#193e34'}, outline: {position: 'absolute', borderWidth: 5, borderColor: '#ffe600', borderRadius: 6}, previewBadge: {position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#193e34dc', padding: 12}, previewBadgeText: {color: '#fff', fontSize: 14, textAlign: 'center'}, cameraCorner: {position: 'absolute', width: 25, height: 25, borderColor: '#eefaf0'}, cornerTL: {top: 22, left: 22, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 5}, cornerTR: {top: 22, right: 22, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 5}, cornerBL: {bottom: 56, left: 22, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 5}, cornerBR: {bottom: 56, right: 22, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 5},
-  successCard: {backgroundColor: '#e6f2e8', borderRadius: 18, padding: 18, borderWidth: 1, borderColor: '#b7d5bf'}, warningCard: {backgroundColor: '#fff2df', borderRadius: 18, padding: 18, gap: 14, borderWidth: 1, borderColor: '#ead2a7'}, help: {fontSize: 26, lineHeight: 38, fontWeight: '800', color: colors.ink}, uncertainText: {color: '#805b25'},
-  menuRow: {flexDirection: 'row', gap: 12, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eef1eb'}, menuPrice: {color: colors.ink, fontSize: 16, fontWeight: '600'}, readerRow: {paddingVertical: 10, borderBottomWidth: 1, borderColor: '#e5ece2'}, orderRow: {gap: 4, paddingVertical: 6},
-  progressTrack: {height: 7, backgroundColor: '#e5ece2', borderRadius: 4, overflow: 'hidden'}, progressFill: {height: 7, backgroundColor: colors.brand}, footer: {flexDirection: 'row', gap: 12, padding: 16, borderTopWidth: 1, borderColor: '#e1e8de', backgroundColor: '#fff'},
-  homeNav: {flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 26, borderTopWidth: 1, borderColor: '#e1e8de', gap: 16}, navItem: {flex: 1, minHeight: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8}, navItemActive: {backgroundColor: colors.mint}, navText: {fontSize: 15, color: '#687b6e', fontWeight: '600'}, navTextActive: {color: colors.brand, fontWeight: '800'},
-  privacy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4}, privacyIcon: {fontSize: 17, color: colors.brand},
-});
+export type ThemeName = 'dark' | 'light';
+export const palettes = {
+  dark: {background: '#080f1e', surface: '#142238', ink: '#f5f8ff', muted: '#c9d4e7', accent: '#ffdf38', buttonText: '#111827', line: '#9baac2', disabled: '#33455f', disabledText: '#f5f8ff'},
+  light: {background: '#f5f7fb', surface: '#ffffff', ink: '#111827', muted: '#425269', accent: '#ffdf38', buttonText: '#111827', line: '#52637c', disabled: '#e1e7ef', disabledText: '#34435b'},
+};
+
+export function createTheme(name: ThemeName) {
+  const colors = palettes[name];
+  const styles = StyleSheet.create({
+    root: {flex: 1, backgroundColor: colors.background}, flex: {flex: 1},
+    header: {minHeight: 68, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12},
+    title: {fontSize: 26, fontWeight: '800', color: colors.ink}, headerButton: {minHeight: 48, borderWidth: 2, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center'}, headerButtonText: {fontSize: 18, fontWeight: '700', color: colors.ink},
+    connection: {paddingHorizontal: 18, paddingBottom: 8}, connectionText: {fontSize: 16, color: colors.muted},
+    main: {flex: 1, paddingHorizontal: 14, gap: 10, minHeight: 0},
+    preview: {flex: 1, minHeight: 0, overflow: 'hidden', borderRadius: 16, backgroundColor: '#000000', borderWidth: 2, borderColor: colors.line},
+    placeholder: {flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 20, backgroundColor: colors.surface},
+    placeholderTitle: {fontSize: 28, fontWeight: '800', color: colors.ink, textAlign: 'center'}, placeholderBody: {fontSize: 19, lineHeight: 28, color: colors.muted, textAlign: 'center'},
+    portraitFrame: {width: 94, height: 166, borderWidth: 4, borderColor: colors.accent, borderRadius: 12, padding: 12, justifyContent: 'flex-end'}, frameLine: {height: 8, borderRadius: 4, backgroundColor: colors.accent, marginTop: 10},
+    outline: {position: 'absolute', borderWidth: 5, borderColor: '#ffdf38', borderRadius: 6},
+    previewBadge: {position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#080f1e', padding: 8}, previewBadgeText: {color: '#f5f8ff', fontSize: 16, textAlign: 'center'},
+    guidance: {backgroundColor: colors.surface, borderRadius: 16, padding: 14, gap: 8}, guideHeading: {flexDirection: 'row', alignItems: 'center', gap: 12},
+    directionBox: {width: 54, height: 54, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center'}, direction: {fontSize: 36, color: colors.buttonText, fontWeight: '800'},
+    guideText: {flex: 1}, guideTitle: {fontSize: 24, lineHeight: 32, fontWeight: '800', color: colors.ink}, caption: {fontSize: 18, lineHeight: 27, color: colors.muted},
+    footer: {flexDirection: 'row', gap: 10, padding: 14, backgroundColor: colors.background},
+    button: {minHeight: 68, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, borderWidth: 2, borderColor: name === 'light' ? colors.ink : colors.accent},
+    buttonText: {fontSize: 22, lineHeight: 30, fontWeight: '800', color: colors.buttonText, textAlign: 'center'}, secondaryButton: {backgroundColor: colors.surface, borderColor: colors.line}, secondaryText: {color: colors.ink},
+    disabled: {backgroundColor: colors.disabled, borderColor: colors.disabled}, disabledText: {color: colors.disabledText}, pressed: {borderColor: colors.ink},
+    content: {padding: 18, gap: 18, paddingBottom: 28}, sectionTitle: {fontSize: 27, lineHeight: 36, fontWeight: '800', color: colors.ink}, body: {fontSize: 21, lineHeight: 30, color: colors.ink}, small: {fontSize: 18, lineHeight: 27, color: colors.muted},
+    card: {padding: 18, gap: 16, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.line}, row: {flexDirection: 'row', gap: 14, alignItems: 'center', justifyContent: 'space-between'},
+    input: {minHeight: 64, borderWidth: 2, borderColor: colors.line, borderRadius: 12, padding: 14, color: colors.ink, backgroundColor: colors.background, fontSize: 21, lineHeight: 30},
+    choice: {minHeight: 66, borderWidth: 2, borderColor: colors.line, borderRadius: 12, padding: 16, backgroundColor: colors.surface}, choiceSelected: {backgroundColor: colors.accent, borderColor: name === 'light' ? colors.ink : colors.accent}, choiceText: {fontSize: 21, color: colors.ink, fontWeight: '700'}, choiceSelectedText: {color: colors.buttonText},
+    menuRow: {gap: 4, paddingVertical: 10, borderBottomWidth: 1, borderColor: colors.line}, warning: {borderWidth: 3, borderColor: name === 'dark' ? colors.accent : colors.line},
+  });
+  return {colors, styles, name};
+}
+export const ThemeContext = createContext(createTheme('dark'));
+export const useTheme = () => useContext(ThemeContext);
