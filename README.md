@@ -4,6 +4,12 @@
 
 AWS 서버는 팀의 기존 GitHub Actions → ECR → EC2 SSM 경로로 배포합니다. Cloudflare quick tunnel을 통해 HTTPS로 공개하므로 터널 컨테이너 재시작 시 주소가 바뀔 수 있습니다. 새 주소는 백엔드 Actions 배포 요약에서 확인하고 앱의 서버 설정에서 변경할 수 있습니다. 고정 주소 운영에는 별도의 도메인·고정 터널 설정이 필요합니다.
 
+## 밝은 홈·설정·안내 화면 (v0.1.5)
+
+아이보리 바탕과 청록색으로 앱 화면을 다시 구성했습니다. 홈은 키오스크 그림·시작 버튼·세 단계 이용 안내·매장 메뉴를 중심으로 정리했습니다. 홈·설정 탭을 추가했고 서버·음성 모델·목표 강조는 설정 화면에서 조절합니다. 안내 화면에는 단계 표시, 현재 안내 문구, 카메라 촬영 가이드와 고정된 일시 정지·종료 버튼을 배치했습니다. 자동 연결과 오프라인 메뉴, 팀 AI의 방향·OCR·누름 결과·자막·주문 진행은 유지합니다.
+
+Jest 41개·TypeScript·ESLint와 release APK의 홈·설정 이동, 자동 연결, 오프라인 저장 메뉴 시작, Wi-Fi 재연결, 반복 카메라 실행·정지·재개를 확인했습니다. 미리보기는 실제 에뮬레이터 APK의 캡처이며 카메라 부분은 테스트 영상입니다. S26 Ultra 실물 전체 주문은 사용자 확인이 필요합니다.
+
 ## 자동 연결과 화면 안내 (v0.1.4)
 
 앱 실행 시 저장 설정을 불러온 뒤 Wi-Fi·모바일 데이터로 배포 서버와 매장 메뉴를 자동 확인합니다. 인터넷이 없으면 저장된 메뉴를 사용하고 재연결·앱 복귀 시 다시 확인합니다. 서버 응답 실패는 5·15·30·60초 간격으로 재시도하고 연결 성공 후 60초 간격으로 상태를 확인합니다. 잘못된 매장 코드·삭제된 매장은 설정 오류로 표시합니다. 주문 안내 중에는 메뉴·별칭·매장·통계 목적지를 유지하며 새 메뉴는 종료 후 적용합니다.
@@ -18,7 +24,7 @@ Jest 41개·TypeScript·ESLint, 최종 release APK의 자동 온라인 시작·�
 
 ## 지금 확인하기
 
-휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.4-guidance-ui-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.4-guidance-ui-20261005/guidance-ui-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.5-design-refresh-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.5-design-refresh-20261005/redesign-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
 
 휴대폰 없이 [상세 시뮬레이션](https://amazing-manually-transcript-est.trycloudflare.com/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 

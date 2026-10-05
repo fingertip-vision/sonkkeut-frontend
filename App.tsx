@@ -13,10 +13,12 @@ import {restoreSettings} from './src/settings';
 import {useBackendConnection} from './src/useBackendConnection';
 import type {ServerConfig} from './src/useBackendConnection';
 import {orderProgress, readableRows, targetOverlay, visualGuidance} from './src/guidance';
+import {BrandMark, KioskArtwork} from './src/Artwork';
+import {colors, styles} from './src/theme';
 
 const labels = {S0: '준비', S1: '화면 탐색', S2: '화면 인식', S3: '주문 입력', S4: '손끝 유도', S5: '결과 확인', S6: '안내 완료', SE: '다시 확인'};
 function Button({title, onPress, disabled = false, secondary = false}: {title: string; onPress: () => void; disabled?: boolean; secondary?: boolean}) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={[styles.button, secondary && styles.secondaryButton, disabled && styles.disabled]}><Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed}) => [styles.button, secondary && styles.secondaryButton, disabled && styles.disabled, pressed && styles.pressed]}><Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text></Pressable>;
 }
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
   const [lowVision, setLowVision] = useState(true);
   const [preview, setPreview] = useState({width: 1, height: 1});
   const [settings, setSettings] = useState(false);
+  const [page, setPage] = useState<'home' | 'settings'>('home');
   const [speechSettings, setSpeechSettings] = useState(false);
   const [storeCode, setStoreCode] = useState<string>();
   const startedAt = useRef(Date.now());
@@ -275,7 +278,7 @@ export default function App() {
       const selectedCode = code.trim().toUpperCase();
       if (selectedCode && !/^[A-Z2-9]{6}$/.test(selectedCode)) {throw new Error('매장 코드는 영문·숫자 6자리입니다');}
       await AsyncStorage.setItem('settings', JSON.stringify({server: base, code: selectedCode, statsEnabled: statsEnabledRef.current}));
-      setServer(base); setCode(selectedCode); setServerConfig({server: base, code: selectedCode}); reconnect();
+      setServer(base); setCode(selectedCode); setServerConfig({server: base, code: selectedCode}); setPage('home'); reconnect();
       flow.enter('S0', '설정을 저장했습니다. 서버에 자동으로 연결합니다.'); refresh();
     } catch (e) {flow.enter('SE', (e as Error).message); refresh();}
   }
@@ -288,7 +291,7 @@ export default function App() {
   function end() {
     record(false); generation.current++; Sonkkeut.clearTarget(); Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();
     flow.reset(); applied.current = undefined; setListening(false); screenSeen.current = false; setGuidance(undefined); setVerification(undefined); setReader(false); setCameraError(false);
-    flow.enter('S0', '손끝길을 시작합니다'); setRunning(false); refresh();
+    flow.enter('S0', '손끝길을 시작합니다'); setRunning(false); setPage('home'); refresh();
   }
   const target = !paused && !cameraError && (flow.state === 'S4' || flow.state === 'S5') && ai.result?.found ? flow.action?.target : undefined;
   const overlay = targetOverlay(ai.result?.target_image_box, ai.result?.frame_size, preview);
@@ -305,55 +308,55 @@ export default function App() {
     setReader(!reader);
     if (ai.result?.found && flow.screen && !paused) {Sonkkeut.say(screenReading(flow.screen));}
   }
+  const phase = flow.confirmed ? 2 : flow.state === 'S3' ? 1 : 0;
   return <SafeAreaView style={styles.root}>
-    <StatusBar barStyle="light-content" backgroundColor="#101b2b"/>
+    <StatusBar barStyle="dark-content" backgroundColor={colors.background}/>
     <View style={styles.header}>
-      <View><Text accessibilityRole="header" style={styles.title}>손끝길</Text><Text style={styles.subtitle}>손끝으로 찾는 주문의 길</Text></View>
-      <View style={styles.brandBadge}><Text style={styles.badgeText}>{running ? labels[flow.state] : '주문 도우미'}</Text></View>
+      <View style={styles.brand}><BrandMark/><View><Text accessibilityRole="header" style={styles.title}>손끝길</Text><Text style={styles.subtitle}>손끝으로 찾는 쉬운 주문</Text></View></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={running ? '안내 설정' : page === 'home' ? '서버·매장 설정' : '홈으로'} disabled={!serverConfig} accessibilityState={{disabled: !serverConfig}} style={styles.headerButton} onPress={() => {
+        if (running) {setSettings(!settings);} else {setPage(page === 'home' ? 'settings' : 'home'); setSettings(page === 'home');}
+      }}><Text style={styles.headerButtonText}>{running ? '설정' : page === 'home' ? '설정' : '홈으로'}</Text></Pressable>
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.connectionCard}>
-        <View style={styles.row}><Text style={[styles.connectionTitle, online && styles.successText]}>{online ? '● 서버 연결됨' : connectionStatus === 'checking' ? '◌ 자동 연결 확인 중' : connectionStatus === 'error' ? '○ 매장 설정 확인 필요' : '○ 오프라인 안내 가능'}</Text><Text style={styles.small}>{connection.network}</Text></View>
-        <Text accessibilityLiveRegion="polite" style={styles.small}>{connectionMatches ? connection.message : '저장된 서버와 매장 메뉴를 확인하고 있습니다'}</Text>
+        <View style={styles.row}><Text style={[styles.connectionTitle, online && styles.successText]}>{online ? '● 서버 연결됨' : connectionStatus === 'checking' ? '◌ 자동 연결 확인 중' : connectionStatus === 'error' ? '○ 매장 설정 확인 필요' : '○ 오프라인 안내 가능'}</Text><Text style={styles.networkLabel}>{connection.network}</Text></View>
+        {(!online || page === 'settings' || running && connection.menu && connection.menu.menu_version !== appliedMenuVersion.current) && <Text accessibilityLiveRegion="polite" style={styles.connectionDetails}>{connectionMatches ? connection.message : '저장된 서버와 매장 메뉴를 확인하고 있습니다'}</Text>}
+        {online && <Text accessibilityLiveRegion="polite" style={styles.connectionDetails}>{running ? '매장 메뉴와 연결되어 있어요' : connection.menu?.store_name || '기본 시연 메뉴'}</Text>}
         {connectionMatches && connection.modelVersion && connection.modelVersion !== MODEL_VERSION && <Text style={styles.small}>서버 모델 정보 {connection.modelVersion} · 앱 모델 {MODEL_VERSION}</Text>}
         {running && connection.menu && (connection.menu.store_code !== storeCode || connection.menu.menu_version !== appliedMenuVersion.current) && <Text style={styles.small}>새 매장 메뉴는 안내 종료 후 적용됩니다.</Text>}
         {(connectionStatus === 'retrying' || connectionStatus === 'error') && <Button title="연결 다시 확인" secondary onPress={reconnect}/>}
       </View>
-      {!running && <>
+      {!running && page === 'home' && <>
         <View style={styles.hero}>
-          <Text style={styles.eyebrow}>카메라 · 음성 · 화면 안내</Text>
-          <Text style={styles.heroTitle}>주문할 버튼까지{'\n'}함께 찾아가요</Text>
-          <Text style={styles.body}>키오스크를 비추고 주문을 알려 주세요. 손끝의 방향과 버튼 이름을 화면에서도 확인할 수 있어요.</Text>
+          <View style={styles.heroRow}><View style={styles.heroCopy}><Text style={styles.eyebrow}>당신의 주문 길잡이</Text><Text style={styles.heroTitle}>더 쉬운 주문,{'\n'}손끝길과 함께.</Text></View><KioskArtwork/></View>
           <Button title={ai.ready ? '손끝길 시작' : '모델 준비 중'} onPress={() => {start().catch(e => {flow.enter('SE', String(e)); refresh();});}} disabled={!ai.ready || !serverConfig}/>
-          <Text style={styles.small}>인터넷이 연결되면 매장 메뉴를 자동으로 받습니다.</Text>
+          <Text style={styles.heroNote}>키오스크를 비추면 버튼까지 안내해 드려요.</Text>
         </View>
         {(ai.error || flow.state === 'SE') && <View style={styles.warningCard}><Text accessibilityLiveRegion="polite" style={styles.body}>{ai.error || flow.message}</Text><Button title="앱 권한 설정 열기" secondary onPress={() => {Linking.openSettings();}}/></View>}
+        <View style={styles.sectionIntro}><Text accessibilityRole="header" style={styles.sectionTitle}>세 단계면 충분해요</Text><Text style={styles.small}>누른 결과를 확인하며 차근차근 안내합니다.</Text></View>
+        <View style={styles.steps}>{['화면\n비추기', '주문\n확인하기', '손끝\n따라가기'].map((label, index) => <View key={label} style={styles.stepTile}><Text style={styles.stepNumber}>0{index + 1}</Text><Text style={styles.stepLabel}>{label}</Text></View>)}</View>
         <View style={styles.card}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>이렇게 이용해요</Text>
-          <Text style={styles.body}>① 키오스크 화면 전체를 카메라에 담기</Text>
-          <Text style={styles.body}>② 말하거나 입력한 주문을 직접 확인하기</Text>
-          <Text style={styles.body}>③ 방향 안내에 따라 검지를 옮겨 누르기</Text>
-          <Text style={styles.small}>눌린 결과를 확인하며 한 단계씩 안내합니다. 결제는 키오스크에서 진행해 주세요.</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.row}><Text accessibilityRole="header" style={styles.sectionTitle}>현재 매장 메뉴</Text><Text style={styles.small}>{storeCode || '기본 시연'}</Text></View>
-          <Text style={styles.small}>{menuSource.current === 'server' ? connection.menu?.store_name || '저장된 매장 메뉴' : menuSource.current === 'detected' ? '카메라에서 읽은 메뉴' : '시연용 기본 메뉴 · 실제 화면을 확인해 주세요'}</Text>
+          <View style={styles.row}><View style={styles.storeIcon}><Text accessible={false} style={styles.storeIconText}>⌂</Text></View><View style={styles.flex}><Text style={styles.small}>현재 매장 메뉴</Text><Text accessibilityRole="header" style={styles.storeName}>{menuSource.current === 'server' ? connection.menu?.store_name || '저장된 매장 메뉴' : menuSource.current === 'detected' ? '카메라에서 읽은 메뉴' : '시연용 기본 메뉴 · 실제 화면을 확인해 주세요'}</Text></View><Text style={styles.storeCode}>{storeCode || '시연'}</Text></View>
           {menu.slice(0, 8).map(item => <View key={item.name} style={styles.menuRow}><Text style={styles.body}>{item.name}{item.sold_out ? ' · 품절' : ''}</Text><Text style={styles.menuPrice}>{item.price != null ? `${item.price.toLocaleString()}원` : '금액 확인 필요'}</Text></View>)}
           {menu.length > 8 && <Text style={styles.small}>외 {menu.length - 8}개 메뉴</Text>}
         </View>
+        <View style={styles.privacy}><Text accessible={false} style={styles.privacyIcon}>✓</Text><Text style={styles.small}>영상과 자체 음성 인식은 기기 안에서 처리해요.</Text></View>
+        <Button title={modelDownloading ? '음성 모델 다운로드 확인' : speechModel?.ready ? '음성 주문 준비 완료' : '말로 주문할 준비하기'} secondary onPress={() => {setPage('settings'); setSpeechSettings(true); setSettings(false);}}/>
       </>}
       {running && <>
+        <View style={styles.stageRow}>{['화면 찾기', '주문 확인', '손끝 안내'].map((label, index) => <View key={label} style={[styles.stage, index === phase && styles.stageActive]}><Text style={[styles.stageText, index === phase && styles.stageActiveText]}>{index + 1} · {label}</Text></View>)}</View>
         <View style={styles.guidanceCard}>
-          <View style={styles.guideHeading}><Text style={styles.direction} accessible={false}>{guide.symbol}</Text><View style={styles.guideText}><Text accessibilityLiveRegion="polite" style={styles.guideTitle}>{guide.title}</Text><Text style={styles.small}>{guide.detail}</Text></View></View>
+          <Text style={styles.eyebrow}>{paused ? '잠시 쉬어 가세요' : labels[flow.state]}</Text>
+          <View style={styles.guideHeading}><View style={styles.directionBox}><Text style={styles.direction} accessible={false}>{guide.symbol}</Text></View><View style={styles.guideText}><Text accessibilityLiveRegion="polite" style={styles.guideTitle}>{guide.title}</Text><Text style={styles.small}>{guide.detail}</Text></View></View>
           {target && <Text style={styles.targetName}>목표 버튼 · {target.text || '버튼 이름 확인 중'}</Text>}
-          <Text accessibilityLiveRegion="polite" style={styles.message}>{listening ? '주문을 듣고 처리하고 있습니다…' : ai.error || (cameraError ? flow.message : paused ? '안내를 멈췄습니다. 계속하기를 누르면 화면을 다시 확인합니다.' : flow.message)}</Text>
-          {!paused && !ai.result?.found && ai.result?.hint && <Text style={styles.body}>휴대폰 위치 · {ai.result.hint}</Text>}
+          {(!paused || cameraError) && <View style={styles.captionBlock}><Text style={styles.small}>현재 안내</Text><Text accessibilityLiveRegion="polite" style={styles.message}>{listening ? '주문을 듣고 처리하고 있습니다…' : ai.error || (cameraError ? flow.message : !ai.result?.found && ai.result?.hint && ['S1', 'S2'].includes(flow.state) ? ai.result.hint : flow.message)}</Text></View>}
         </View>
         {device && permission && !cameraError && <View style={styles.preview} onLayout={e => setPreview(e.nativeEvent.layout)}>
           <Camera style={StyleSheet.absoluteFill} device={device} format={format} fps={15} pixelFormat="yuv" resizeMode="cover" isActive={ai.ready && !paused && foreground && flow.state !== 'S6'} frameProcessor={ai.frameProcessor} onError={() => {
             generation.current++; applied.current = undefined; setGuidance(undefined); setListening(false); Sonkkeut.cancelListening(); Sonkkeut.clearTarget(); Sonkkeut.silence(); flow.screen = undefined; flow.paused = true; setPaused(true); setCameraError(true);
             flow.enter('SE', '카메라를 열지 못했습니다. 다른 카메라 앱을 닫고 다시 시도해 주세요.'); refresh();
           }}/>
+          {!ai.result?.found && <View pointerEvents="none" style={StyleSheet.absoluteFill}>{[styles.cornerTL, styles.cornerTR, styles.cornerBL, styles.cornerBR].map((corner, index) => <View key={index} style={[styles.cameraCorner, corner]}/>)}</View>}
           {lowVision && target && overlay && <View pointerEvents="none" style={[styles.outline, overlay]}/>}
           <View pointerEvents="none" style={styles.previewBadge}><Text style={styles.previewBadgeText}>{paused ? '카메라 일시 정지' : ai.result?.found ? `화면 인식됨${target ? ' · 노란 테두리가 목표' : ''}` : '화면 전체가 보이게 비춰 주세요'}</Text></View>
         </View>}
@@ -383,7 +386,7 @@ export default function App() {
           {!speechModel?.ready && <><Text style={styles.small}>음성 모델을 받거나 아래에 주문을 입력해 주세요.</Text><Button title="음성 모델 준비 열기" secondary onPress={() => setSpeechSettings(true)}/></>}
           <Button title="기기 음성 인식으로 주문하기" secondary onPress={() => {listen('system');}} disabled={listening || paused || modelDownloading || modelPreparing}/>
           {listening && <Button title="음성 입력 취소" secondary onPress={() => {generation.current++; setListening(false); Sonkkeut.cancelListening();}}/>}
-          <TextInput accessibilityLabel="주문 문장" editable={!paused && !listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor="#acb6c9" value={order} onChangeText={setOrder} style={styles.input} multiline/>
+          <TextInput accessibilityLabel="주문 문장" editable={!paused && !listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor="#677e70" value={order} onChangeText={setOrder} style={styles.input} multiline/>
           <Button title="입력한 주문 확인" onPress={() => submit(order)} disabled={paused || listening || !order.trim()}/>
         </View>}
         {flow.state === 'SE' && !cameraError && <View style={styles.warningCard}>
@@ -393,8 +396,10 @@ export default function App() {
         </View>}
         {captions.length > 0 && <View style={styles.card}><Text accessibilityRole="header" style={styles.sectionTitle}>최근 안내 자막</Text>{captions.map((text, index) => <Text key={`${index}-${text}`} style={index === 0 ? styles.body : styles.small}>{index === 0 ? '최근 · ' : '이전 · '}{text}</Text>)}</View>}
       </>}
+      {(!running && page === 'settings' || running && (settings || speechSettings)) && <>
+      <View style={styles.sectionIntro}><Text accessibilityRole="header" style={styles.sectionTitle}>내게 맞는 설정</Text><Text style={styles.small}>음성 주문과 화면 표시를 편하게 조절하세요.</Text></View>
       <View style={styles.card}>
-        <View style={styles.row}><Text style={styles.body}>목표 버튼 크게 강조</Text><Switch accessibilityLabel="저시력 목표 버튼 강조" value={lowVision} onValueChange={setLowVision}/></View>
+        <View style={styles.row}><Text style={styles.body}>목표 버튼 크게 강조</Text><Switch accessibilityLabel="저시력 목표 버튼 강조" value={lowVision} trackColor={{false: '#ccd6ce', true: '#94bea6'}} thumbColor={lowVision ? colors.brand : '#fff'} onValueChange={setLowVision}/></View>
         <Text style={styles.small}>음성 안내와 함께 큰 글자·방향 화살표·목표 테두리를 보여줍니다.</Text>
         <Button title={speechSettings ? '음성 모델 설정 접기' : `음성 모델 ${speechModel?.ready ? '준비 완료' : '준비하기'}`} secondary onPress={() => setSpeechSettings(!speechSettings)}/>
         {speechSettings && <>
@@ -407,11 +412,11 @@ export default function App() {
         <Button title={settings ? '서버·매장 설정 접기' : '서버·매장 설정'} secondary onPress={() => setSettings(!settings)} disabled={!serverConfig}/>
         {settings && <>
           <Text style={styles.small}>기본 배포 서버에는 자동으로 연결됩니다. 다른 매장을 사용하려면 설정을 저장해 주세요.</Text>
-          <TextInput accessibilityLabel="백엔드 주소" editable={!running} autoCapitalize="none" autoCorrect={false} value={server} onChangeText={setServer} placeholder={BACKEND_URL} placeholderTextColor="#acb6c9" style={styles.input}/>
-          <TextInput accessibilityLabel="매장 코드" editable={!running} autoCapitalize="characters" autoCorrect={false} value={code} onChangeText={setCode} placeholder="매장 코드 6자리 (선택)" placeholderTextColor="#acb6c9" style={styles.input}/>
+          <TextInput accessibilityLabel="백엔드 주소" editable={!running} autoCapitalize="none" autoCorrect={false} value={server} onChangeText={setServer} placeholder={BACKEND_URL} placeholderTextColor="#677e70" style={styles.input}/>
+          <TextInput accessibilityLabel="매장 코드" editable={!running} autoCapitalize="characters" autoCorrect={false} value={code} onChangeText={setCode} placeholder="매장 코드 6자리 (선택)" placeholderTextColor="#677e70" style={styles.input}/>
           <Button title="설정 저장·자동 연결" onPress={() => {saveServer();}} disabled={running}/>
           {running && <Text style={styles.small}>매장 설정은 주문 안내 종료 후 변경할 수 있습니다.</Text>}
-          <View style={styles.row}><Text style={styles.body}>익명 통계 전송</Text><Switch accessibilityLabel="익명 통계 전송 동의" value={statsEnabled} onValueChange={value => {
+          <View style={styles.row}><Text style={styles.body}>익명 통계 전송</Text><Switch accessibilityLabel="익명 통계 전송 동의" value={statsEnabled} trackColor={{false: '#ccd6ce', true: '#94bea6'}} thumbColor={statsEnabled ? colors.brand : '#fff'} onValueChange={value => {
             statsEnabledRef.current = value; setStatsEnabled(value);
             if (!value) {clearUsage().catch(() => {});} else if (online) {flushUsage().catch(() => {});}
             AsyncStorage.setItem('settings', JSON.stringify({...serverConfig, statsEnabled: value})).catch(() => {});
@@ -421,23 +426,12 @@ export default function App() {
         </>}
         <Text style={styles.small}>앱 {APP_VERSION} · AI {MODEL_VERSION}</Text>
       </View>
+      </>}
     </ScrollView>
+    {!running && <View style={styles.homeNav}>
+      <Pressable accessibilityRole="tab" accessibilityLabel="홈 화면" accessibilityState={{selected: page === 'home'}} style={[styles.navItem, page === 'home' && styles.navItemActive]} onPress={() => setPage('home')}><Text style={[styles.navText, page === 'home' && styles.navTextActive]}>홈</Text></Pressable>
+      <Pressable accessibilityRole="tab" accessibilityLabel="환경 설정" accessibilityState={{selected: page === 'settings'}} style={[styles.navItem, page === 'settings' && styles.navItemActive]} onPress={() => setPage('settings')}><Text style={[styles.navText, page === 'settings' && styles.navTextActive]}>설정</Text></Pressable>
+    </View>}
     {running && <View style={styles.footer}><View style={styles.flex}><Button title={paused ? '계속하기' : '일시 정지'} onPress={pause} disabled={cameraError || flow.state === 'S6'}/></View><View style={styles.flex}><Button title="주문 안내 종료" secondary onPress={end}/></View></View>}
   </SafeAreaView>;
 }
-const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: '#101b2b'}, content: {padding: 18, paddingBottom: 28, gap: 16},
-  header: {paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12},
-  title: {color: '#f4cc67', fontSize: 32, fontWeight: '800'}, subtitle: {color: '#c7d2e6', fontSize: 14}, brandBadge: {borderRadius: 20, backgroundColor: '#26364e', paddingHorizontal: 14, paddingVertical: 9}, badgeText: {color: '#f4cc67', fontSize: 15, fontWeight: '700'},
-  connectionCard: {backgroundColor: '#18273a', borderRadius: 16, padding: 14, gap: 7, borderWidth: 1, borderColor: '#3e536f'}, connectionTitle: {color: '#f4cc67', fontSize: 16, fontWeight: '700', flexShrink: 1}, successText: {color: '#8ee3b3'},
-  hero: {backgroundColor: '#20334d', borderRadius: 22, padding: 22, gap: 18}, eyebrow: {color: '#f4cc67', fontSize: 16, fontWeight: '700'}, heroTitle: {color: '#fff', fontSize: 32, lineHeight: 44, fontWeight: '800'},
-  card: {backgroundColor: '#1e2b41', borderRadius: 18, padding: 18, gap: 14}, sectionTitle: {color: '#fff', fontSize: 21, fontWeight: '700', flexShrink: 1},
-  guidanceCard: {backgroundColor: '#243952', borderRadius: 18, padding: 18, gap: 12, borderWidth: 2, borderColor: '#f4cc67'}, guideHeading: {flexDirection: 'row', alignItems: 'center', gap: 16}, direction: {color: '#f4cc67', fontSize: 54, fontWeight: '800', minWidth: 56, textAlign: 'center'}, guideText: {flex: 1, gap: 6}, guideTitle: {color: '#fff', fontSize: 25, fontWeight: '800', lineHeight: 35}, targetName: {color: '#f4cc67', fontSize: 22, lineHeight: 32, fontWeight: '700'},
-  message: {color: '#fff', fontSize: 21, lineHeight: 32}, body: {color: '#fff', fontSize: 18, lineHeight: 28, flexShrink: 1}, small: {color: '#c7d2e6', fontSize: 14, lineHeight: 22, flexShrink: 1},
-  button: {backgroundColor: '#f4cc67', minHeight: 58, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 1}, buttonText: {color: '#101b2b', fontSize: 18, fontWeight: '700', textAlign: 'center'}, secondaryButton: {backgroundColor: '#263b57', borderWidth: 1, borderColor: '#6c85a6'}, secondaryText: {color: '#eef4ff'}, disabled: {opacity: 0.5},
-  input: {borderWidth: 2, borderColor: '#93a9c8', borderRadius: 12, color: '#fff', padding: 14, fontSize: 18, minHeight: 58}, row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12}, flex: {flex: 1},
-  preview: {height: 240, overflow: 'hidden', borderRadius: 18, backgroundColor: '#080e18'}, outline: {position: 'absolute', borderWidth: 5, borderColor: '#ffe600', borderRadius: 5}, previewBadge: {position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#101b2bd9', padding: 10}, previewBadgeText: {color: '#fff', fontSize: 15, textAlign: 'center'},
-  successCard: {backgroundColor: '#153b32', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#8ee3b3'}, warningCard: {backgroundColor: '#3c2e25', borderRadius: 16, padding: 18, gap: 14, borderWidth: 1, borderColor: '#f4cc67'}, help: {fontSize: 28, lineHeight: 40, fontWeight: '800', color: '#fff'}, uncertainText: {color: '#f4cc67'},
-  menuRow: {flexDirection: 'row', gap: 12, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#3b4b63'}, menuPrice: {color: '#f4cc67', fontSize: 17}, readerRow: {paddingVertical: 10, borderBottomWidth: 1, borderColor: '#3b4b63'}, orderRow: {gap: 4, paddingVertical: 6},
-  progressTrack: {height: 8, backgroundColor: '#101b2b', borderRadius: 4, overflow: 'hidden'}, progressFill: {height: 8, backgroundColor: '#8ee3b3'}, footer: {flexDirection: 'row', gap: 12, padding: 14, borderTopWidth: 1, borderColor: '#3b4b63', backgroundColor: '#18273a'},
-});

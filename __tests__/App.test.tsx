@@ -40,6 +40,8 @@ test('saved custom settings hydrate before automatic connection and server menus
   expect(mockConfig).toEqual({server: 'https://saved.example.com', code: 'ABCDEF'});
   expect(text()).toContain('서버 연결됨'); expect(text()).toContain('기존 매장'); expect(text()).toContain('아메리카노');
   expect(root.root.findAllByType(TextInput)).toHaveLength(0);
+  tap('서버·매장 설정'); expect(text()).toContain('내게 맞는 설정');
+  tap('홈으로'); expect(text()).toContain('기존 매장'); expect(root.root.findAllByType(TextInput)).toHaveLength(0);
 });
 test('saving a different server discards the previous server menu before the new response arrives', async () => {
   expect(text()).toContain('기존 매장 전용'); tap('서버·매장 설정');
