@@ -2,10 +2,10 @@
 
 현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델, 매장별 SQLite 메뉴 보정, AWS 자동 연결을 유지합니다.
 
-- [Kotlin APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.0-native-kotlin-20261005/sonkkeut-kotlin.apk) · 기존 앱에 업데이트 설치
+- [최신 Kotlin·UI 통합 개발 APK 다운로드](https://github.com/hy2oni/sonkkeut-frontend/releases/download/kotlin-ui-integration-20261006/sonkkeut-kotlin-ui-integration.apk) · 기존 앱에 업데이트 설치
 - [Android Studio 실행과 네이티브 구조](docs/native-kotlin.md) · 이 레포의 루트 폴더를 Open
 - 현재 개발 브랜치 `develop_kotlin_ui_integration`, 형제 AI 레포 `codex/unified-ai-20261003`의 `d1685e9` 커밋 기준
-- 현재 통합 소스: 단위 테스트 67개 통과, 에뮬레이터 테스트 소스 컴파일 성공. 통합 APK·에뮬레이터 실행·실물 사용성은 아직 미검증
+- 현재 통합 소스: 단위 테스트 67개 통과. Android 15 에뮬레이터 검사 12개 통과·Whisper 음성 추론 1개 생략. 통합 APK 빌드·설치·실행 확인, 실물 사용성은 미검증
 - 위 공개 Kotlin 0.2.0 APK의 기존 기록: 단위 테스트 63개·에뮬레이터 테스트 12개 통과
 
 LLM과 음식 속성 의미 검색은 아직 포함하지 않습니다. 현재 보정은 등록된 메뉴 이름·별칭·발음 유사도 검색입니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
@@ -21,9 +21,11 @@ LLM과 음식 속성 의미 검색은 아직 포함하지 않습니다. 현재 �
 - 큰 방향 안내·담기 진행·목표 강조와 넓은 후면 렌즈 설정을 Kotlin에 반영했습니다. 실제 기기의 초광각과 사용성은 검증이 필요합니다.
 - 통계에 동의하면 완료·중도 종료 결과를 전송하며 영상·음성·주문 문장은 전송하지 않습니다.
 
-소스 컴파일과 단위 테스트 67개가 통과했습니다. 에뮬레이터 테스트 소스는 컴파일만 확인했으며 아직 실행하지 않았습니다.
+소스 컴파일과 단위 테스트 67개가 통과했습니다. Android 15 에뮬레이터에서 카메라 중지·재개, 주문 입력 중 프레임 처리, 주문 확인, 설정 진입 시 중지, 서버 설정 잠금과 안내 종료를 확인했습니다. 전체 Android 검사 13개 중 12개 통과, Whisper 실제 모델·음성 입력 파일을 제공하지 않아 음성 추론 1개는 생략했습니다. 기본 OCR·영상 모델과 메뉴 DB, 실제 서버 메뉴·상태 연결 검사는 통과했습니다.
 
-**통합 APK는 아직 제작·배포하지 않았습니다.** 위 다운로드는 기존 Kotlin 0.2.0 앱입니다. 통합 화면의 에뮬레이터·실물 검증은 다음 단계에서 수행합니다. 기획자의 별도 5개 변경 요청은 이 통합 작업 뒤에 적용할 예정입니다.
+**현재 개발 진행 중입니다.** [최신 통합 APK](https://github.com/hy2oni/sonkkeut-frontend/releases/download/kotlin-ui-integration-20261006/sonkkeut-kotlin-ui-integration.apk)(약 65MB, ARM64, 개발용 서명)는 Kotlin 0.2.0 / code 10이며 검증 소스 커밋은 `9dae9db`입니다. [검증 결과와 남은 문제](docs/kotlin-ui-validation-20261006.md)를 확인하세요. 포크와 원본의 `develop_kotlin_ui_integration` 브랜치에 같은 내용을 올리며, 다른 브랜치에는 병합하지 않습니다.
+
+남은 확인·수정: 시스템 글자 2배에서 주문 패널을 열면 카메라가 지나치게 작아지고 카메라 안내 문구가 잘립니다. 밝은 테마의 노란색 메뉴 글자는 대비 개선이 필요합니다. 실제 한국어 녹음, 초광각·손끝 안내·키오스크 전체 주문, 이전 앱 설정 자동 이전은 실물에서 추가 확인해야 합니다. 기획자의 별도 5개 변경 요청은 이 통합 작업 뒤에 적용할 예정입니다.
 
 ## 이전 React Native 앱 기록
 

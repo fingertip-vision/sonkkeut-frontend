@@ -1,0 +1,66 @@
+{
+  "date": "2026-10-06",
+  "branch": "develop_kotlin_ui_integration",
+  "source_commit": "9dae9db0e301c70011038557321ee4c546bde953",
+  "ai_commit": "d1685e9f80f5b92d7f6a06887d44321ede15733a",
+  "build": "release; development debug keystore; arm64-v8a",
+  "version_name": "0.2.0",
+  "version_code": 10,
+  "apk": "sonkkeut-kotlin-ui-integration.apk",
+  "bytes": 65197277,
+  "sha256": "dfa21dc7be93a1a55da423e929c339c401fb21920cac0a101e817216e380e76d",
+  "build_command": ":app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest",
+  "emulator": {
+    "avd": "Sonkkeut_Event_Test",
+    "android": "15",
+    "screen": "1080x2400",
+    "page_size": 4096,
+    "note": "x86_64 emulator with ARM64 translation; virtual camera scene"
+  },
+  "unit_tests": {
+    "passed": 67,
+    "failed": 0
+  },
+  "android_tests": {
+    "total": 13,
+    "passed": 12,
+    "skipped": 1,
+    "failed": 0,
+    "skip_reason": "Whisper speechFixture model directory and synthetic PCM not supplied"
+  },
+  "verified": [
+    "release update installation and launch",
+    "native vision initialization; bundled ONNX/OCR fixtures",
+    "backend menu and health from emulator",
+    "SQLite menu catalog",
+    "camera frame processing during text order input",
+    "pause/resume camera processing",
+    "explicit order confirmation",
+    "settings pause and server/store edit lock",
+    "guidance end clears session",
+    "home controls at system font scale 2; system scale restored to 1",
+    "theme and app font setting survive relaunch"
+  ],
+  "issues": [
+    "system font scale 2 plus app default large text makes camera very short during inline input; camera instruction clips",
+    "light theme yellow menu text needs contrast improvement"
+  ],
+  "unverified": [
+    "real Korean microphone transcription",
+    "real ultra-wide hardware",
+    "fresh kiosk scene recognition across actual physical screen transitions",
+    "fingertip guidance and complete kiosk ordering on physical phone",
+    "previous React Native settings automatic migration"
+  ],
+  "screenshots": [
+    "kotlin-ui-home.png",
+    "kotlin-ui-camera.png",
+    "kotlin-ui-large-home.png",
+    "kotlin-ui-large-order.png",
+    "kotlin-ui-accessibility.png",
+    "kotlin-ui-theme-restored.png"
+  ],
+  "published": true,
+  "release_url": "https://github.com/hy2oni/sonkkeut-frontend/releases/tag/kotlin-ui-integration-20261006",
+  "apk_url": "https://github.com/hy2oni/sonkkeut-frontend/releases/download/kotlin-ui-integration-20261006/sonkkeut-kotlin-ui-integration.apk"
+}
