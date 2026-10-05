@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-06",
+  "branch": "develop_kotlin_ui_integration",
+  "base_frontend_commit": "9371cd2876c380de90a30c8a7dfceaa8334fcddd",
+  "frontend_source": "base commit plus uncommitted working-tree changes",
+  "ai_commit": "80d3dfcdaec24144334e1236319237bf44651154",
+  "version_name": "0.2.1",
+  "version_code": 11,
+  "apk": "sonkkeut-kotlin-ui-ai-0.2.1.apk",
+  "bytes": 65209993,
+  "sha256": "935214a0a7e6e0f1d63aca400582a26f1b03791816cedf5bd33d04e1fe0e52b4",
+  "abi": [
+    "arm64-v8a"
+  ],
+  "signing": "development keystore",
+  "unit_tests": {
+    "passed": 74,
+    "failed": 0
+  },
+  "android_tests": {
+    "total": 17,
+    "passed": 16,
+    "skipped": 1,
+    "failed": 0,
+    "skip_reason": "Whisper speechFixture not supplied"
+  },
+  "model_weights_unchanged": true,
+  "features": [
+    "local catalog recommendation; manual editable draft then explicit confirmation",
+    "bounded 2x3 tile OCR; explicit user start and cancellation",
+    "detail results rejected on lifecycle/session/navigation cancellation",
+    "partial detail coordinates never selected as guidance targets",
+    "tip confidence and pointing visual hints"
+  ],
+  "unverified": [
+    "real Korean microphone accuracy",
+    "physical kiosk end-to-end ordering",
+    "physical ultra-wide hardware",
+    "TalkBack and visually impaired user testing"
+  ],
+  "known_ui_issues_preserved": [
+    "large system font shrinks camera and clips camera instruction",
+    "light theme yellow menu contrast"
+  ],
+  "published": false,
+  "final_app_regression": {
+    "passed": 6,
+    "failed": 0,
+    "reason": "rerun after final cancellation request identifier hardening"
+  },
+  "release_installation": "updated installed com.sonkkeut successfully; versionCode 11 / versionName 0.2.1; launcher opened",
+  "source_files_sha256": {
+    "app/src/main/java/com/sonkkeut/app/AccessibilitySettings.kt": "8d000e750d6c69f2380bf8046807bdb6bd82d5d47618cabe904d32cfd388c42b",
+    "app/src/main/java/com/sonkkeut/app/AnnouncementGate.kt": "c6ca9ec3aa4f4780ae10a787a9628614f04930527921f83cc36e9825e89fdbc5",
+    "app/src/main/java/com/sonkkeut/app/BackendAddress.kt": "d21d27506ed187c11ddfd4a05ee613e8b6580d33a93ab56e12835dd7d337ede8",
+    "app/src/main/java/com/sonkkeut/app/BackendHealthClient.kt": "51f853571fd8a7eb457c84d97e47a24c0b7650bc748b6f1502bd7de9909499c1",
+    "app/src/main/java/com/sonkkeut/app/GuidanceOutput.kt": "b60c226c949bcb1dd9e4a8690d14d26c324583696d3a72730f1fbc6eda206f7f",
+    "app/src/main/java/com/sonkkeut/app/GuidanceSession.kt": "7d01c5eb37f83c08303924d90b027a0ccb66891aa5fe2f3faa586cb1ca063f45",
+    "app/src/main/java/com/sonkkeut/app/MainActivity.kt": "4bdc75c7f537ce3509c2520bd9609cd5fa4cd9eae59c1949eed5a1e4ea18f549",
+    "app/src/main/java/com/sonkkeut/app/MainCameraLayout.kt": "c61fd6b63b44293aa5ac05e0b76ed2932909e4afdb0d3a1d8456e5508a1d170e",
+    "app/src/main/java/com/sonkkeut/app/NativeAppModel.kt": "c8441d0379158cfeb8a15cb3a490b3454b139f92073890f6ed246c1a45e0beef",
+    "app/src/main/java/com/sonkkeut/app/NativeHandPrompt.kt": "a6bf18a8b9d03837e88081c25bef89a1bf9a0083500c174a5bf2644f113489f9",
+    "app/src/main/java/com/sonkkeut/app/NativeMenuClient.kt": "34f081c3efa1a2e92ba223bf58469b794c469e533ea35d4e0f0c3554827607c0",
+    "app/src/main/java/com/sonkkeut/app/NativeMenuRecommendations.kt": "a6419630f6caf9a4fda37613c8db029570c764e96db232730ef5641927a51681",
+    "app/src/main/java/com/sonkkeut/app/NativeOrder.kt": "6d77b73fcd90d797765b143d2485632e6da89f49db3572d9e17f51c1e2bcb839",
+    "app/src/main/java/com/sonkkeut/app/NativeOrderFlow.kt": "3f7dd110874295bc5fdee4c33b1e1831131a18b1885199dc3cdec1758c73143c",
+    "app/src/main/java/com/sonkkeut/app/NativeSystemSpeech.kt": "668b9e20db3735030352aed47ddf0176061ab41fd4e85456ddb21c2c4d2953de",
+    "app/src/main/java/com/sonkkeut/app/NativeUsageReporter.kt": "86a28ecac8480e08b211155c18c8d5721a59e5af63310b0d0d1f0dc94372e538",
+    "app/src/main/java/com/sonkkeut/app/SyntheticReplay.kt": "4337b58d27c862a3fa83f09bb6b7bb20374bd104d2c517dc92ff7f77c837205b",
+    "app/src/main/java/com/sonkkeut/app/VisualElements.kt": "126a42cf6594c87d08da5ecafbe93a8564d71b7478de3de1b32494b3caa3c55b",
+    "app/src/main/java/com/sonkkeut/app/VisualGeometry.kt": "809c2aaea04fa0f9cff37bcd6fa2c93110382fb26a4e779e2ccd324b6c18ec17",
+    "app/src/main/java/com/sonkkeut/app/VisualGuidanceCore.kt": "9f006a90b83e7427cec0e1c146507dbcb93334ada6c489c666854ffb32f129f2",
+    "app/src/main/java/com/sonkkeut/app/VisualTracking.kt": "73d0cf25dea0e25a32ac5a11f7ff2a49762730a347cea86d238fcf3b057ed3f9",
+    "app/src/main/java/com/sonkkeut/app/VisualVerification.kt": "d3c10215596e272931e980d89fd2e0159925500e4c4480ff1c114e945de25db1"
+  }
+}

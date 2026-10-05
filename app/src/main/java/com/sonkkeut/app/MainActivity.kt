@@ -63,7 +63,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     var pendingSystem by remember { mutableStateOf(false) }
     var cameraStatus by remember { mutableStateOf("") }
     var retry by remember { mutableIntStateOf(0) }
-    val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it) model.start() }
+    val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it && !model.detailMode) model.start() }
     val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="home" && model.running && !model.paused) { if(pendingSystem) model.listenSystem() else model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false; pendingSystem=false }
     SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]) }
     DisposableEffect(output) { onDispose { output.close() } }
@@ -94,7 +94,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             }
         }
     }
-    BackHandler(model.page!="home" || model.textOrderOpen || model.running) { pendingMic=false; if(model.textOrderOpen) model.toggleTextOrder() else if(model.page!="home") model.open("home") else model.open("menu") }
+    BackHandler(model.page!="home" || model.textOrderOpen || model.running || model.detailMode) { pendingMic=false; if(model.detailMode) model.closeDetailRead() else if(model.textOrderOpen) model.toggleTextOrder() else if(model.page!="home") model.open("home") else model.open("menu") }
     fun go(page: String) { pendingMic=false; output.stop(); model.open(page) }
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
@@ -104,12 +104,12 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     TextButton(onClick={go("menu")},modifier=Modifier.heightIn(min=56.dp)) { Text("메뉴·설정") }
                 }
 
-                if(model.running) {
+                if(model.running && !model.detailMode) {
                     Text(model.visualGuidance(),style=MaterialTheme.typography.headlineSmall,modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite })
                     if(model.order!=null && model.flowState!="S3") Text(model.progressText(),style=MaterialTheme.typography.bodyMedium)
                 }
                 Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF080F1E))) {
-                    if(cameraGranted && !model.paused && model.ready && model.flowState!="S6") key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it; if(it.startsWith("카메라 오류")) { model.pause(); output.suspendOutput() }}) }
+                    if(cameraGranted && model.cameraActive) key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it; if(it.startsWith("카메라 오류")) { model.pause(); output.suspendOutput() }}) }
                     else Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text(if(!cameraGranted) "카메라 권한을 허용해 주세요." else model.message,color=Color.White)
                         Button(onClick={if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA)},enabled=model.ready || !cameraGranted,modifier=Modifier.heightIn(min=56.dp)) { Text(if(cameraGranted) "손끝길 시작" else "카메라 권한 허용") }
@@ -118,17 +118,27 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                             NativeButton("카메라 다시 연결") { retry++; cameraStatus=""; model.start() }
                         }
                     }
-                    if(cameraGranted && !model.paused && model.ready && model.flowState!="S6") {
+                    if(cameraGranted && model.cameraActive) {
                         CameraOverlay(model.frame,Modifier.fillMaxSize(),preferences.lowVision && model.flowState in listOf("S4","S5"))
-                        Text(if(model.found) "화면 인식 중" else "키오스크 전체 화면을 비춰 주세요",color=Color.White,modifier=Modifier.align(Alignment.TopCenter).background(Color(0xDD080F1E)).padding(8.dp))
+                        Text(if(model.detailMode) "글자 가까이 비추기 · 손끝 안내 중지" else if(model.found) "화면 인식 중" else "키오스크 전체 화면을 비춰 주세요",color=Color.White,modifier=Modifier.align(Alignment.TopCenter).background(Color(0xDD080F1E)).padding(8.dp))
                         if(cameraStatus.startsWith("카메라 오류")) TextButton(onClick={retry++},modifier=Modifier.align(Alignment.Center)) { Text("카메라 다시 연결") }
+                    }
+                }
+                if(model.detailMode) {
+                    Column(Modifier.fillMaxWidth().heightIn(max=280.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text(model.detailStatus,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+                        NativeButton("상세 읽기 시작",enabled=cameraGranted && !model.detailBusy) { output.stop(); model.requestDetailRead() }
+                        if(model.detailBusy) NativeButton("상세 읽기 취소") { model.cancelDetailRead() }
+                        NativeButton("읽은 내용 음성 안내",enabled=model.detailLines.isNotEmpty() && !model.detailBusy) { output.resumeOutput(); output.read(model.detailLines.joinToString(". ") { it.text }) }
+                        model.detailLines.forEach { Text(it.text) }
+                        NativeButton("상세 읽기 닫기") { model.closeDetailRead() }
+                        Text("읽은 글자는 확인용입니다. 버튼 위치 안내에 사용하지 않습니다.")
                     }
                 }
                 if(model.running && !model.paused && model.flowState!="S6") {
                     if(model.textOrderOpen || model.recording || model.speechBusy || model.flowState=="S3") {
                         Column(Modifier.fillMaxWidth().heightIn(max=280.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
 
-                        var text by rememberSaveable { mutableStateOf("") }
                         Text("예: 따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해 주세요.")
                         Text(model.speechStatus)
                         if(!model.modelInstalled) NativeButton("자체 음성 모델 받기 · 약 485MB",enabled=!model.speechBusy) { model.downloadSpeech() }
@@ -146,8 +156,8 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                         }
                         if(!model.systemSpeechAvailable) Text("기기 온디바이스 음성 인식이 없습니다. 자체 모델이나 직접 입력을 이용해 주세요.")
                         if(model.textOrderOpen) {
-                            OutlinedTextField(text,{text=it},label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=2)
-                            NativeButton("입력한 주문 확인",enabled=!model.speechBusy) { model.submit(text) }
+                            OutlinedTextField(model.orderDraft,model::editOrderDraft,label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=2)
+                            NativeButton("입력한 주문 확인",enabled=!model.speechBusy) { model.submit(model.orderDraft) }
                         } else NativeButton("직접 입력 주문") { model.toggleTextOrder() }
                         if(model.rawSpeech.isNotBlank()) Text("들은 문장: ${model.rawSpeech}")
                         model.rag?.let { result ->
@@ -155,6 +165,12 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                             result.ambiguities.firstOrNull()?.let { ambiguity ->
                                 Text("‘${ambiguity.original}’과 비슷한 메뉴를 선택해 주세요.")
                                 ambiguity.candidates.forEach { candidate -> NativeButton(candidate.menu.name+if(candidate.menu.soldOut) " · 품절" else "",enabled=!candidate.menu.soldOut) { model.selectCandidate(candidate) } }
+                            }
+                        }
+                        if(model.recommendations.isNotEmpty()) {
+                            Text("등록된 메뉴 후보입니다. 재료·알레르기 정보는 보장하지 않습니다. 선택 후 수량·옵션을 다시 입력해 주세요.")
+                            model.recommendations.forEach { candidate ->
+                                NativeButton("후보 선택 · ${candidate.menu.name}",enabled=!model.speechBusy) { model.selectRecommendation(candidate) }
                             }
                         }
                         Text(model.message,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
@@ -174,6 +190,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 Text("사용 중인 메뉴 · ${model.storeName}")
                 NativeButton("주문 안내 종료",enabled=model.running) { output.stop(); model.end() }
                 NativeButton("화면 읽기·버튼 선택") { go("screen") }
+                NativeButton("가까이서 상세 글자 읽기",enabled=model.ready) { output.stop(); model.prepareDetailRead() }
                 NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
                 NativeButton("화면·카메라·음성 설정") { go("accessibility") }
                 NativeButton("서버·매장 설정") { go("connection") }

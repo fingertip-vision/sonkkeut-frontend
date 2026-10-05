@@ -59,4 +59,33 @@ class NativeAppTest {
         compose.onAllNodes(hasScrollAction()).assertCountEquals(0)
         compose.onAllNodesWithText("손끝길 시작").assertCountEquals(2)
     }
+    @Test fun recommendationSelectionRequiresANewEditedOrderAndConfirmation() {
+        compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
+        compose.runOnUiThread { model().start(); model().submit("커피 두 잔 주세요") }
+        compose.waitUntil(10000) { !model().speechBusy && model().recommendations.isNotEmpty() }
+        assertNull(model().order)
+        val selected=model().recommendations.first()
+        compose.onNodeWithText("후보 선택 · ${selected.menu.name}").performScrollTo().performClick()
+        assertNull(model().order); assertTrue(model().textOrderOpen); assertEquals(selected.menu.name,model().orderDraft)
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextClearance()
+        compose.onNode(hasSetTextAction()).performTextInput("${selected.menu.name} 두 잔 포장해 주세요")
+        compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
+        compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
+        assertEquals(2,model().order!!.items.single().qty); assertEquals("S3",model().flowState)
+        compose.onNodeWithText("네, 이 주문으로 안내 시작").performScrollTo().assertExists()
+    }
+    @Test fun detailReadingNeedsExplicitStartAndLateResultsCannotEscapeCancelOrNavigation() {
+        compose.waitUntil(60000) { model().ready }
+        compose.runOnUiThread { model().prepareDetailRead() }
+        assertTrue(model().paused); assertTrue(model().detailMode); assertFalse(model().detailBusy)
+        compose.onNodeWithText("상세 읽기 시작").performScrollTo().performClick()
+        compose.waitUntil(20000) { !model().detailBusy }
+        assertTrue(model().paused); assertNull(model().order); assertTrue(model().frame.isEmpty())
+        compose.runOnUiThread { model().requestDetailRead(); model().cancelDetailRead() }
+        compose.waitForIdle(); assertFalse(model().detailBusy)
+        compose.runOnUiThread { model().requestDetailRead(); model().open("menu") }
+        Thread.sleep(1000)
+        assertFalse(model().detailMode); assertFalse(model().detailBusy); assertTrue(model().detailLines.isEmpty())
+        assertEquals("menu",model().page)
+    }
 }

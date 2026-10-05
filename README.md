@@ -1,16 +1,25 @@
-# 손끝길 · Kotlin Android 앱 0.2.0
+# 손끝길 · Kotlin Android 앱 0.2.1 개발 중
 
 현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델, 매장별 SQLite 메뉴 보정, AWS 자동 연결을 유지합니다.
 
-- [최신 Kotlin·UI 통합 개발 APK 다운로드](https://github.com/hy2oni/sonkkeut-frontend/releases/download/kotlin-ui-integration-20261006/sonkkeut-kotlin-ui-integration.apk) · 기존 앱에 업데이트 설치
+- [최근 공개 APK 다운로드 · 0.2.0](https://github.com/hy2oni/sonkkeut-frontend/releases/download/kotlin-ui-integration-20261006/sonkkeut-kotlin-ui-integration.apk) · 새 0.2.1은 아직 로컬 빌드만 완료
 - [Android Studio 실행과 네이티브 구조](docs/native-kotlin.md) · 이 레포의 루트 폴더를 Open
-- 현재 개발 브랜치 `develop_kotlin_ui_integration`, 형제 AI 레포 `codex/unified-ai-20261003`의 `d1685e9` 커밋 기준
-- 현재 통합 소스: 단위 테스트 67개 통과. Android 15 에뮬레이터 검사 12개 통과·Whisper 음성 추론 1개 생략. 통합 APK 빌드·설치·실행 확인, 실물 사용성은 미검증
+- 현재 개발 브랜치 `develop_kotlin_ui_integration`, 형제 AI 레포 `codex/unified-ai-20261003`의 `80d3dfc` 커밋 기준
+- 현재 통합 소스: 단위 테스트 74개 통과. Android 15 에뮬레이터 검사 16개 통과·Whisper 음성 추론 1개 생략. 통합 APK 빌드·설치·실행 확인, 실물 사용성은 미검증
 - 위 공개 Kotlin 0.2.0 APK의 기존 기록: 단위 테스트 63개·에뮬레이터 테스트 12개 통과
 
-LLM과 음식 속성 의미 검색은 아직 포함하지 않습니다. 현재 보정은 등록된 메뉴 이름·별칭·발음 유사도 검색입니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
+음성 보정은 등록된 메뉴 이름·별칭·발음 유사도 검색입니다. 0.2.1에는 제한된 음식 분류와 유사 철자를 이용한 메뉴 후보 추천을 추가했습니다. LLM·신경망 임베딩·재료/알레르기 추론은 포함하지 않습니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
 
-## Kotlin · UI 통합 개발 진행 중
+## AI 동기화와 새 기능 · 0.2.1
+
+- 메뉴를 찾지 못한 주문에서 등록된 후보를 최대 3개 표시합니다. 후보 선택 후 수량·옵션을 다시 입력하고 주문을 확인해야 하며 자동 주문하지 않습니다.
+- `메뉴·설정 → 가까이서 상세 글자 읽기`에서 글자를 가까이 비추고 시작 버튼을 누르면 상세 OCR을 실행합니다. 확인한 글자는 화면·음성으로 읽으며 손끝 안내 목표로 사용하지 않습니다.
+- 상세 읽기 취소·화면 이동·백그라운드 전환 이후의 늦은 결과를 폐기합니다. 새 손끝 신뢰도·검지 상태 정보도 시각 안내에 연결했습니다.
+- 로컬 APK: `artifacts/sonkkeut-kotlin-ui-ai-0.2.1.apk`(약 65MB, ARM64, 개발용 서명, versionCode 11). 기존 앱 위 업데이트 설치를 확인했습니다.
+
+[사용 방법·검증 결과](docs/ai-module-sync-0.2.1.md)를 확인하세요. 이번 0.2.1은 아직 커밋·푸시·공개 배포 전입니다. 아래는 기존 0.2.0 통합 기록입니다. 큰 글자와 밝은 테마의 표시 문제는 수정하지 않고 기록만 유지했습니다.
+
+## 초기 Kotlin · UI 통합 기록 · 0.2.0
 
 현재 작업 브랜치는 `develop_kotlin_ui_integration`입니다. Kotlin 전환 `d0a09eb`에 원본 UI 통합 `43f32a8`의 화면 흐름과 운영 정책을 반영하고 있습니다. 실제 실행은 루트 `app/`의 Kotlin·Compose·CameraX이며 기존 TypeScript 파일은 이전 구현의 참고 자료입니다.
 
