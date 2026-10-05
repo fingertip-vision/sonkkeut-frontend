@@ -27,6 +27,14 @@ class GuidanceOutput(context: Context) {
     private var suspended = false
     private var currentId: String? = null
     private var sequence = 0
+    private var voiceEnabled = true
+    private var vibrationEnabled = true
+    private var speechRate = 1f
+    fun configure(voice: Boolean, vibration: Boolean, rate: Float) {
+        if (voiceEnabled && !voice) { tts?.stop(); currentId = null; audio.abandonAudioFocusRequest(focus) }
+        if (vibrationEnabled && !vibration) vibrator?.cancel()
+        voiceEnabled = voice; vibrationEnabled = vibration; speechRate = rate
+    }
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
         .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ change -> if (change < 0) stop() }, main).build()
@@ -37,7 +45,8 @@ class GuidanceOutput(context: Context) {
     var outputStatus by mutableStateOf("아직 재생한 안내가 없습니다.")
         private set
     val hasVibrator: Boolean get() = vibrator?.hasVibrator() == true
-    val lastText: String? get() = gate.lastText
+    var lastText by mutableStateOf<String?>(null)
+        private set
 
     init {
         main.postDelayed({ if (!closed && !initializationFinished) speechStatus = "음성 출력 준비가 지연되고 있습니다. 기기 음성 출력 설정을 확인해 주세요." }, 10000)
@@ -73,20 +82,23 @@ class GuidanceOutput(context: Context) {
 
     fun announce(key: String, text: String, direction: Boolean = false, press: Boolean = false, vibration: LongArray? = null) {
         if (closed || suspended || !gate.accept(key, text, SystemClock.elapsedRealtime(), direction, press)) return
+        lastText = gate.lastText
         stopDevices()
-        if (vibration != null && hasVibrator) {
+        if (vibrationEnabled && vibration != null && hasVibrator) {
             try { vibrator.vibrate(VibrationEffect.createWaveform(vibration, -1)) } catch (_: RuntimeException) { outputStatus = "이 기기에서 진동을 실행하지 못했습니다." }
         }
         speak(text)
     }
     fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it, explicit = true) } }
     private fun speak(text: String, explicit: Boolean = false) {
+        if (!voiceEnabled && !explicit) { outputStatus = "화면 안내: $text"; return }
         if (!explicit && accessibility.isTouchExplorationEnabled) { outputStatus = "화면 읽기 안내: $text"; return }
         if (!ready) { outputStatus = "화면 안내: $text"; return }
         if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             outputStatus = "다른 소리가 재생 중입니다. 다시 듣기를 눌러 주세요."
             return
         }
+        tts?.setSpeechRate(speechRate)
         val id = "guidance-${++sequence}"
         currentId = id
         if (tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) {
@@ -98,6 +110,6 @@ class GuidanceOutput(context: Context) {
     fun suspendOutput() { suspended = true; stop() }
     fun resumeOutput() { suspended = false; gate.clearDeduplication() }
     fun resetAttempt() { stop(); gate.resetAttempt() }
-    fun clearRepeat() { stopDevices(); gate.clearLastGuidance(); outputStatus = "이전 세션 안내를 지웠습니다." }
+    fun clearRepeat() { stopDevices(); gate.clearLastGuidance(); lastText = null; outputStatus = "이전 세션 안내를 지웠습니다." }
     fun close() { closed = true; stopDevices(); tts?.shutdown(); tts = null; main.removeCallbacksAndMessages(null) }
 }
