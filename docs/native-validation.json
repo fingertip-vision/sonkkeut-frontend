@@ -1,0 +1,48 @@
+{
+  "apk": {
+    "passed": true,
+    "version": "0.2.0",
+    "version_code": 10,
+    "application_id": "com.sonkkeut",
+    "ui": "Kotlin / Jetpack Compose / CameraX",
+    "apk_sha256": "cfb3d1e0fc81aac25ce52606648c0c4373d046acb4baecf0f94d720a74acad99",
+    "apk_size_bytes": 65192405,
+    "react_native_runtime_present": false,
+    "javascript_bundle_present": false,
+    "original_models_unchanged": true,
+    "original_whisper_decoder_unchanged": true,
+    "models": {
+      "m1_screen_corners_int8.onnx": "9121f7de3b200231d022790ac6345497ab4d32022a3280889e0e616e750cdfce",
+      "m1r_corner_refiner.onnx": "331f3073d5fad57a79485c5b18f03cea94bbd6e782d2bd0fb0905b0986b33c50",
+      "m2_screen_elements_int8.onnx": "8c30a754567fb9b4e1fceba5533cc103a429aaeb2bd1deabfd93137f7fba1a4f",
+      "m3_kiosk_rec_v2.onnx": "80d6462d5cc0d0a189ecd810940df484902594a11087a4592e8a8dec47d87145",
+      "hand_landmarker.task": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+    },
+    "update_signature_matches_v0_1_8": true,
+    "kotlin_unit_tests": 63,
+    "llm_included": false,
+    "physical_phone_tested": false
+  },
+  "android_emulator": {
+    "passed": true,
+    "tests_passed": 12,
+    "tests_skipped": 0,
+    "native_ui_tests": 3,
+    "real_whisper_jni_inference": true,
+    "menu_database_tests": 2,
+    "ocr_vision_model_tests": true,
+    "automatic_backend_connection": true,
+    "camera_pause_resume": true,
+    "confirmation_before_guidance": true,
+    "react_activity_absent": true,
+    "device": "Android API35 emulator with ARM64 translation",
+    "physical_phone_microphone_tested": false,
+    "release_apk_smoke": {
+      "passed": true,
+      "camera_start_pause_resume": true,
+      "backend_connected": true,
+      "fatal_crash_absent": true,
+      "real_kiosk_camera_tested": false
+    }
+  }
+}

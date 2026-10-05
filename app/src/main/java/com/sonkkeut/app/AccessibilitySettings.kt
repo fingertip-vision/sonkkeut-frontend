@@ -44,7 +44,7 @@ internal fun AccessibleApp(content: @Composable () -> Unit) {
         }
     }
     val colors = if (preferences.light) lightColorScheme(
-        primary = Color(0xFF171B26), onPrimary = Color.White,
+        primary = Color(0xFFFFDF38), onPrimary = Color(0xFF111827),
         background = Color(0xFFF7F8FA), surface = Color(0xFFF7F8FA), onSurface = Color(0xFF171B26),
     ) else darkColorScheme(primary = Color(0xFFFFE45C), onPrimary = Color(0xFF111318),
         background = Color(0xFF171B26), surface = Color(0xFF171B26), onSurface = Color(0xFFF7F8FA))
@@ -90,7 +90,7 @@ internal fun AccessibilitySettings(onBack: () -> Unit) {
         Text("휴대폰의 글자 크기 설정도 반영해요", style = MaterialTheme.typography.bodyLarge)
         Text("자동 음성을 꺼도 ‘다시 듣기’는 사용할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
         HorizontalDivider()
-        Text("화면 인식과 주문 안내는 아직 준비 중입니다.", style = MaterialTheme.typography.bodyLarge)
+        Text("카메라 화면은 전체 프레임을 표시합니다. 메인에는 카메라·안내 중지·재안내를 두고, 주문과 설정은 별도 화면에서 이용합니다.", style = MaterialTheme.typography.bodyLarge)
     }
 }
 

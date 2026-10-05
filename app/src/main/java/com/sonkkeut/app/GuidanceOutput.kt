@@ -90,6 +90,11 @@ class GuidanceOutput(context: Context) {
         speak(text)
     }
     fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it, explicit = true) } }
+    fun read(text: String) {
+        if (closed || suspended) return
+        gate.accept("explicit:${SystemClock.elapsedRealtime()}", text, SystemClock.elapsedRealtime(), false, false)
+        lastText = text; stopDevices(); speak(text, explicit = true)
+    }
     private fun speak(text: String, explicit: Boolean = false) {
         if (!voiceEnabled && !explicit) { outputStatus = "화면 안내: $text"; return }
         if (!explicit && accessibility.isTouchExplorationEnabled) { outputStatus = "화면 읽기 안내: $text"; return }
