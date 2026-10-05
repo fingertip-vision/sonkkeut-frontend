@@ -60,11 +60,10 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     val outputSession=remember { intArrayOf(-1,-1) }
     var cameraGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) }
     var pendingMic by remember { mutableStateOf(false) }
-    var pendingSystem by remember { mutableStateOf(false) }
     var cameraStatus by remember { mutableStateOf("") }
     var retry by remember { mutableIntStateOf(0) }
     val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it && !model.detailMode) model.start() }
-    val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="home" && model.running && !model.paused) { if(pendingSystem) model.listenSystem() else model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false; pendingSystem=false }
+    val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="home" && model.running && !model.paused) { model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false }
     SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]) }
     DisposableEffect(output) { onDispose { output.close() } }
     DisposableEffect(lifecycle) {
@@ -85,12 +84,12 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     LaunchedEffect(model.speechRequested,model.speechBusy) {
         if(model.speechRequested && !model.speechBusy && model.running && !model.paused && model.page=="home") {
             model.consumeSpeechRequest()
-            val useSystem=!model.modelInstalled
-            if(useSystem && !model.systemSpeechAvailable) { model.toggleTextOrder(); model.announce("음성 모델을 준비하거나 주문을 직접 입력해 주세요.") }
+            val needsModel=!model.modelInstalled
+            if(needsModel) { model.toggleTextOrder(); model.announce("음성 모델을 준비하거나 주문을 직접 입력해 주세요.") }
             else {
                 output.suspendOutput()
-                if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) { if(useSystem) model.listenSystem() else model.listen() }
-                else { pendingMic=true; pendingSystem=useSystem; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
+                if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) { model.listen() }
+                else { pendingMic=true; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
             }
         }
     }
@@ -145,23 +144,15 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                         else NativeButton("자체 모델로 말하기",enabled=!model.speechBusy && model.menu.isNotEmpty()) {
                             output.suspendOutput()
                             if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.listen()
-                            else { pendingMic=true; pendingSystem=false; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
+                            else { pendingMic=true; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
                         }
                         if(model.recording) NativeButton("말하기 완료") { model.finishSpeech() }
                         if(model.speechBusy) NativeButton("음성 작업 취소") { model.cancelSpeech(); output.resumeOutput() }
-                        NativeButton("기기 음성 인식으로 말하기",enabled=!model.speechBusy && model.systemSpeechAvailable && model.menu.isNotEmpty()) {
-                            output.suspendOutput()
-                            if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.listenSystem()
-                            else { pendingMic=true; pendingSystem=true; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
-                        }
-                        if(!model.systemSpeechAvailable) Text("기기 온디바이스 음성 인식이 없습니다. 자체 모델이나 직접 입력을 이용해 주세요.")
                         if(model.textOrderOpen) {
                             OutlinedTextField(model.orderDraft,model::editOrderDraft,label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=2)
                             NativeButton("입력한 주문 확인",enabled=!model.speechBusy) { model.submit(model.orderDraft) }
                         } else NativeButton("직접 입력 주문") { model.toggleTextOrder() }
-                        if(model.rawSpeech.isNotBlank()) Text("들은 문장: ${model.rawSpeech}")
                         model.rag?.let { result ->
-                            Text("보정 문장: ${result.text}")
                             result.ambiguities.firstOrNull()?.let { ambiguity ->
                                 Text("‘${ambiguity.original}’과 비슷한 메뉴를 선택해 주세요.")
                                 ambiguity.candidates.forEach { candidate -> NativeButton(candidate.menu.name+if(candidate.menu.soldOut) " · 품절" else "",enabled=!candidate.menu.soldOut) { model.selectCandidate(candidate) } }
@@ -174,9 +165,14 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                             }
                         }
                         Text(model.message,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
-                        if(model.flowState=="S3" && model.order!=null && !model.speechBusy && model.rag?.ambiguities.isNullOrEmpty()) NativeButton("네, 이 주문으로 안내 시작") { output.resumeOutput(); model.confirm() }
                         }
                     } else if(model.order==null) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
+                }
+                if(model.order!=null && !model.detailMode) {
+                    Column(Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite }) {
+                        Text("주문 확인",style=MaterialTheme.typography.titleMedium)
+                        Text(model.order!!.confirmation())
+                    }
                 }
                 Text(model.message,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
                     modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite; contentDescription=model.message })

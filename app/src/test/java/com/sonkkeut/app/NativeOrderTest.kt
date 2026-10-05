@@ -11,7 +11,7 @@ class NativeOrderTest {
     @Test fun multiItemQuantitiesAndTemperaturesStayWithTheirMenu() {
         val value=NativeOrderParser.parse("따뜻한 아메리카노 두 잔하고 아이스 카페라떼 한 잔 포장해 주세요",menu)
         assertEquals(listOf(2,1),value.items.map { it.qty }); assertEquals(listOf("hot","ice"),value.items.map { it.temperature }); assertEquals("포장",value.dine)
-        assertTrue(value.confirmation().contains("맞나요"))
+        assertTrue(value.confirmation().contains("이 주문으로 안내합니다"))
     }
     @Test fun exactAliasRetainsItsTemperature() { assertEquals("ice",NativeOrderParser.parse("아아 한 잔 주세요",menu).items.single().temperature) }
     @Test fun unsupportedFoodsAndOptionsAreNotSilentlyRemoved() { listOf("피자 한 개","디카페인 아메리카노 한 잔","아메리카노 두 잔하고 초콜릿 한 개").forEach(::rejects) }

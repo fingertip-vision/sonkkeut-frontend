@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 data class NativeOrderItem(val menu: String, val qty: Int, val price: Int?, val temperature: String? = null, val size: String? = null)
 data class NativeOrder(val items: List<NativeOrderItem>, val dine: String?) {
-    fun confirmation() = items.joinToString(", ") { "${if (it.temperature == "ice") "아이스 " else if (it.temperature == "hot") "따뜻한 " else ""}${it.menu}${it.size?.let { s -> " $s" } ?: ""} ${it.qty}개" } + (dine?.let { ", $it" } ?: "") + " 맞나요?"
+    fun confirmation() = items.joinToString(", ") { "${if (it.temperature == "ice") "아이스 " else if (it.temperature == "hot") "따뜻한 " else ""}${it.menu}${it.size?.let { s -> " $s" } ?: ""} ${it.qty}개" } + (dine?.let { ", $it" } ?: "") + ". 이 주문으로 안내합니다."
 }
 object NativeOrderParser {
     private val quantities = Regex("(\\d+|하나|다섯|여섯|일곱|여덟|아홉|한|두|둘|세|셋|네|넷|열)(?:잔|개)")

@@ -32,7 +32,7 @@ class NativeAppTest {
         compose.runOnUiThread { model().start() }
         compose.waitUntil(45000) { model().frames>=before+2 }
     }
-    @Test fun nativeTypingRequiresConfirmationAndReturnsToCamera() {
+    @Test fun nativeTypingAutomaticallyStartsGuidanceAndShowsOnlyOrderSummary() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         compose.runOnUiThread { model().start(); model().toggleTextOrder() }
         val name=model().menu.first { !it.soldOut }.name
@@ -41,8 +41,10 @@ class NativeAppTest {
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("$name 한 잔 포장해 주세요")
         compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
-        assertEquals("S3",model().flowState)
-        compose.onNodeWithText("네, 이 주문으로 안내 시작").performScrollTo().performClick()
+        assertNotEquals("S3",model().flowState)
+        compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
+        compose.onNodeWithText("주문 확인").assertExists()
+        compose.onNodeWithText("기기 음성 인식으로 말하기").assertDoesNotExist()
         compose.onNodeWithText("메뉴·설정").assertExists()
         assertFalse(model().paused)
     }
@@ -59,7 +61,7 @@ class NativeAppTest {
         compose.onAllNodes(hasScrollAction()).assertCountEquals(0)
         compose.onAllNodesWithText("손끝길 시작").assertCountEquals(2)
     }
-    @Test fun recommendationSelectionRequiresANewEditedOrderAndConfirmation() {
+    @Test fun recommendationSelectionNeedsEditedOrderBeforeAutomaticGuidance() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         compose.runOnUiThread { model().start(); model().submit("커피 두 잔 주세요") }
         compose.waitUntil(10000) { !model().speechBusy && model().recommendations.isNotEmpty() }
@@ -71,8 +73,21 @@ class NativeAppTest {
         compose.onNode(hasSetTextAction()).performTextInput("${selected.menu.name} 두 잔 포장해 주세요")
         compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
         compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
-        assertEquals(2,model().order!!.items.single().qty); assertEquals("S3",model().flowState)
-        compose.onNodeWithText("네, 이 주문으로 안내 시작").performScrollTo().assertExists()
+        assertEquals(2,model().order!!.items.single().qty); assertNotEquals("S3",model().flowState)
+        compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
+    }
+    @Test fun recognizedSpeechStartsOnlyForValidOrdersAndHidesRawTranscript() {
+        compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
+        val name=model().menu.first { !it.soldOut }.name
+        compose.runOnUiThread { model().start(); model().submit("$name 한 잔 포장해 주세요",true) }
+        compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
+        assertFalse(model().paused); assertNotEquals("S3",model().flowState)
+        compose.onNodeWithText("주문 확인").assertExists()
+        compose.onAllNodes(hasText("들은 문장:",substring=true)).assertCountEquals(0)
+        compose.onAllNodes(hasText("보정 문장:",substring=true)).assertCountEquals(0)
+        compose.runOnUiThread { model().submit("$name 열한 잔 포장해 주세요",true) }
+        compose.waitUntil(10000) { !model().speechBusy }
+        assertNull(model().order); assertEquals("S3",model().flowState)
     }
     @Test fun detailReadingNeedsExplicitStartAndLateResultsCannotEscapeCancelOrNavigation() {
         compose.waitUntil(60000) { model().ready }
