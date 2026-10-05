@@ -1,3 +1,24 @@
+# 손끝길 UI 통합 앱 — 개발 진행 중
+
+최신화: 2026-10-05 · 작업 브랜치: `develop_ui_integration`
+
+[최신 UI 통합 APK 다운로드](https://github.com/hy2oni/sonkkeut-frontend/releases/download/ui-integration-20261005/sonkkeut-ui-integration.apk)
+
+Android 휴대폰에서 위 링크로 APK를 받고 설치하세요. 기존 손끝길 앱과 같은 패키지(`com.sonkkeut`)이며 개발용 서명입니다. 서명이 다른 기존 앱은 바로 업데이트할 수 없을 수 있습니다. 이번 APK는 배포 앱 v0.1.8 (`7ef0deb`)에 팀의 새 UI (`f47f8cb`)를 반영한 개발 검토용 버전입니다.
+
+- 화면 인식 후 카메라를 유지하면서 음성 주문을 시작하고 같은 화면에서 주문을 확인합니다.
+- 텍스트 주문 패널, 상단 방향·안내, 확대된 시작·중지·재안내 버튼을 반영했습니다.
+- AI·백엔드 연결과 주문 처리 기반은 기존 배포 앱을 유지했습니다.
+- 검증: TypeScript 통과, Jest 11개 묶음·67개 테스트 통과, 앱 소스 ESLint 오류·경고 0개, release APK 빌드 성공.
+- Android 15 에뮬레이터에서 설치·실행, 서버·매장 자동 연결, 카메라 시작, 텍스트 입력 및 미등록 메뉴 오류, 중지·재개, 설정 이동, 밝은 테마 저장·복원을 확인했습니다.
+- 실제 키오스크 주문 전체 흐름, 자동 음성 시작·한국어 실제 녹음, 실물 손끝 안내·초광각, TalkBack·큰 시스템 글자와 16KB 페이지 호환성은 미검증입니다.
+
+[APK 검증 기록](docs/ui-integration-validation.json). APK SHA-256: `10df637bb7d5ac3f4c4921956a5d52a48731d88b5c9aefee7452e6529ec2b501`
+
+아래는 기존 배포 앱의 기능과 개발 이력입니다. 이번 브랜치의 최신 APK는 위 링크를 이용하세요.
+
+---
+
 # 손끝길 Android·공개 서비스 연결
 
 프론트 앱, 팀의 온디바이스 영상·OCR·음성 모델과 백엔드를 연결했습니다. AWS EC2·Spring Boot·MySQL에 연결하는 기본 주소는 **https://amazing-manually-transcript-est.trycloudflare.com**, 시연 매장 코드는 **Z9XZSN**, 모델 버전은 **2026.10.03**입니다. APK에는 M1·M1-R·M2와 팀 OCR v2의 ONNX가 들어 있습니다. 팀 Whisper v3는 첫 사용 시 원본 릴리스 약 485 MB를 내려받아 검증한 뒤 기기 안에서 실행합니다.

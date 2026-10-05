@@ -1,0 +1,29 @@
+{
+  "branch": "develop_ui_integration",
+  "base_commit": "7ef0debaa3165d660bb0e1e3d3920ab2d242bb0d",
+  "ui_commit": "f47f8cbfb03e43bc2dc239c33dd1f60964655e6f",
+  "apk": "sonkkeut-ui-integration.apk",
+  "sha256": "10df637bb7d5ac3f4c4921956a5d52a48731d88b5c9aefee7452e6529ec2b501",
+  "device": "Sonkkeut_Event_Test / Android 15 / 4096-byte pages / ARM translation",
+  "passed": [
+    "Release APK build",
+    "Install and cold launch",
+    "Backend and store automatic connection",
+    "Camera start",
+    "Text input panel open/close",
+    "Unknown-menu validation message",
+    "Guidance pause and resume",
+    "Settings navigation",
+    "Light theme applied and restored after relaunch",
+    "No FATAL EXCEPTION or ReactNativeJS Error in inspected recent logcat"
+  ],
+  "not_verified": [
+    "Real kiosk recognition and end-to-end ordering",
+    "Automatic voice start from real camera recognition",
+    "Whisper model download and real Korean microphone transcription",
+    "Physical phone ultra-wide camera, fingertip guidance and feedback",
+    "TalkBack and large system font visual QA",
+    "16KB page-size compatibility"
+  ],
+  "build_note": "Generated autolinking cache paths mapped to existing S: drive to avoid Windows Unicode path error; no tracked build configuration changed."
+}
