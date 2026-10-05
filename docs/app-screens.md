@@ -50,3 +50,7 @@
 - S26 Ultra 실물의 전체 키오스크 주문, 실제 초광각·한국어 음성·진동과 TalkBack 사용성은 미검증. 자동 음성 억제는 정책/브리지 검증이며 실제 화면 읽기 순서를 검증한 결과가 아닙니다.
 
 SDK 적용 기준: [`a8821f3`](https://github.com/fingertip-vision/sonkkeut-ai/commit/a8821f386b08ce4ac5b56fab56df84ae34cb254a), 버전 0.1.3.
+
+## v0.1.8 음성 주문 화면
+
+주문 화면에 인식 원문·메뉴 DB 보정 문장·모호한 후보 선택을 추가했습니다. 두 음성 제공자는 같은 메뉴 DB 보정을 거치며 확인 전 주문을 진행하지 않습니다. ‘말하기 완료’는 녹음을 끝내고 추론하며 ‘음성 입력 취소’는 결과를 폐기합니다. SDK 0.1.4와 새 native decoder beam5를 사용합니다. [평가·프론트 API](https://github.com/fingertip-vision/sonkkeut-ai/blob/codex/unified-ai-20261003/docs/speech-menu-rag.md)에 재현 방법과 실사용 한계를 기록했습니다.

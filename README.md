@@ -4,6 +4,14 @@
 
 AWS 서버는 팀의 기존 GitHub Actions → ECR → EC2 SSM 경로로 배포합니다. Cloudflare quick tunnel을 통해 HTTPS로 공개하므로 터널 컨테이너 재시작 시 주소가 바뀔 수 있습니다. 새 주소는 백엔드 Actions 배포 요약에서 확인하고 앱의 서버 설정에서 변경할 수 있습니다. 고정 주소 운영에는 별도의 도메인·고정 터널 설정이 필요합니다.
 
+## 음성 인식 개선과 메뉴 검색 보정 (v0.1.8)
+
+음성을 텍스트로 변환한 뒤 매장별 SQLite 메뉴 DB에서 이름·별칭·유사 발음을 찾아 보정합니다. 인식 원문과 보정 문장을 화면에 표시하고, 후보가 비슷하면 메뉴 선택을 요청합니다. 품절·미등록 메뉴·불확실한 수량을 자동 주문하지 않으며 사용자 확인 전에는 목표 안내를 시작하지 않습니다. 소음 때문에 녹음이 길어질 때 사용할 ‘말하기 완료’도 추가했습니다. 페이지 이동 후 늦은 음성 결과는 폐기합니다.
+
+기존 Whisper v3 가중치는 그대로 두고 네이티브 디코딩을 5개 후보 비교로 개선했습니다. SDK 0.1.4 / 앱 0.1.8입니다. 앱과 같은 디코딩 조건의 PC 합성 음성 평가에서 주문 정확도는 조용함 62.5%→95.8%, 합성 잡음 15dB 41.7%→79.2%, 5dB 20.8%→33.3%였습니다. 소음 환경 실사용 성능을 보장할 수준은 아니며 S26 Ultra 실제 녹음 검증이 필요합니다.
+
+Jest 63개·TypeScript·ESLint, 실제 Whisper JNI·메뉴 DB·OCR·영상 모델을 포함한 Android 테스트 13개가 통과했습니다. 자세한 조건과 한계는 [음성 평가·메뉴 DB 연결 설명](https://github.com/fingertip-vision/sonkkeut-ai/blob/codex/unified-ai-20261003/docs/speech-menu-rag.md)을 확인하세요.
+
 ## 새 UX 커밋 반영 (v0.1.7)
 
 팀의 `feature/ux-ui` 커밋 `ed78c49`와 `develop` 개발 이력을 병합했습니다. 새 글자 크기·자동 음성·진동·안내 속도 설정을 AI·AWS 연결 앱에도 적용했습니다. 설정은 다음 실행에 복원되며, 자동 음성을 꺼도 재안내·화면 읽기는 사용할 수 있습니다. TalkBack 사용 중 자동 TTS는 억제합니다. 기존 남색·노란색 메인, 스크롤 없는 카메라와 실제 OCR·Whisper·주문 확인·AWS 자동 연결은 유지합니다.
@@ -42,7 +50,7 @@ Jest 41개·TypeScript·ESLint, 최종 release APK의 자동 온라인 시작·�
 
 ## 지금 확인하기
 
-휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.7-ux-sync-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.7-ux-sync-20261005/ux-sync-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.8-speech-rag-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.8-speech-rag-20261005/speech-rag-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
 
 휴대폰 없이 [상세 시뮬레이션](https://amazing-manually-transcript-est.trycloudflare.com/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 

@@ -7,6 +7,8 @@ import type {GuidanceEvent, ScreenStructure, Verdict} from 'react-native-sonkkeu
 import type {Connection, ServerConfig} from '../src/useBackendConnection';
 
 const mockNative = {say: jest.fn(), announce: jest.fn(), configureFeedback: jest.fn(), cancelListening: jest.fn(), silence: jest.fn(), cancelSpeechModelDownload: jest.fn(),
+  listen: jest.fn(async () => '아메리카노 한 잔'), finishListening: jest.fn(),
+  correctMenuSpeech: jest.fn(async (utterance: string, _scope: string, documents: {name: string; aliases: string[]; sold_out: boolean}[]) => new (require('react-native-sonkkeut/src/menuRag').MenuRagIndex)(documents).correct(utterance)),
   setMenuAliases: jest.fn(), clearTarget: jest.fn(), stop: jest.fn(), requestKeyframe: jest.fn(), setTarget: jest.fn(async () => true),
   getSpeechModelStatus: jest.fn(async () => ({ready: true, installed: true})), addModelDownloadListener: jest.fn(() => () => {})};
 let mockCallbacks: {onScreen: (screen: ScreenStructure) => void; onEvent: (event: GuidanceEvent) => void; onVerdict: (verdict: Verdict) => void};
@@ -15,7 +17,7 @@ let mockActive: boolean;
 let mockWideAvailable = false;
 let mockConnection: Connection;
 let mockConfig: ServerConfig | undefined;
-jest.mock('react-native-sonkkeut', () => ({get Sonkkeut() {return mockNative;}, useSonkkeut: (options: typeof mockCallbacks & {active: boolean}) => {mockCallbacks = options; mockActive = options.active; return mockAi;}}));
+jest.mock('react-native-sonkkeut', () => ({get MenuRagIndex() {return require('react-native-sonkkeut/src/menuRag').MenuRagIndex;}, get Sonkkeut() {return mockNative;}, useSonkkeut: (options: typeof mockCallbacks & {active: boolean}) => {mockCallbacks = options; mockActive = options.active; return mockAi;}}));
 jest.mock('react-native-vision-camera', () => ({Camera: Object.assign(() => null, {requestCameraPermission: async () => 'granted'}), useCameraDevice: (_: string, filter?: unknown) => filter && mockWideAvailable ? {id: 'ultra', physicalDevices: ['ultra-wide-angle-camera'], minZoom: 0.5, neutralZoom: 1} : {id: 'camera', physicalDevices: ['wide-angle-camera'], minZoom: 1, neutralZoom: 1}, useCameraFormat: () => undefined}));
 jest.mock('../src/useBackendConnection', () => ({useBackendConnection: (config?: ServerConfig) => {mockConfig = config; return {connection: mockConnection, reconnect: jest.fn()};}}));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
@@ -31,12 +33,47 @@ function tap(label: string) {
 function text() {return JSON.stringify(root.toJSON());}
 beforeEach(async () => {
   jest.clearAllMocks(); await AsyncStorage.clear();
+  mockNative.listen.mockReset().mockResolvedValue('아메리카노 한 잔');
   mockWideAvailable = false;
   jest.replaceProperty(Platform, 'OS', 'android');
   mockConnection = {status: 'online', server: 'https://saved.example.com', configKey: JSON.stringify(['https://saved.example.com', 'ABCDEF']), network: 'Wi-Fi', menu: oldMenu, message: '자동 연결 완료'};
   await AsyncStorage.setItem('settings', JSON.stringify({server: 'https://saved.example.com', code: 'ABCDEF', statsEnabled: false}));
   jest.spyOn(require('react-native').PermissionsAndroid, 'request').mockResolvedValue('granted');
   act(() => {root = renderer.create(<App/>);}); await settle();
+});
+
+test('speech goes through scoped retrieval and shows raw/corrected text before confirmation', async () => {
+  mockNative.listen.mockResolvedValue('아메리 카너 한 찬 포장해 주세요');
+  tap('손끝길 시작'); await settle();
+  openMenu(); tap('주문 입력 열기'); tap('자체 모델로 말로 주문하기'); await settle();
+  expect(mockNative.correctMenuSpeech).toHaveBeenCalledWith('아메리 카너 한 찬 포장해 주세요', expect.stringContaining('saved.example.com'), oldMenu.items);
+  expect(text()).toContain('들은 문장'); expect(text()).toContain('아메리 카너');
+  expect(text()).toContain('메뉴와 표현 보정'); expect(text()).toContain('아메리카노');
+  expect(text()).toContain('네, 이 주문으로 안내 시작'); expect(mockNative.setTarget).not.toHaveBeenCalled();
+});
+
+test('an ambiguous menu requires explicit candidate selection before order confirmation', async () => {
+  mockConnection = {...mockConnection, menu: {...oldMenu, menu_version: 2, items: [
+    {name: '카페라떼', price: 4500, aliases: ['라떼'], sold_out: false},
+    {name: '바닐라라떼', price: 5500, aliases: ['라떼'], sold_out: false},
+  ]}};
+  act(() => root.update(<App/>)); await settle();
+  mockNative.listen.mockResolvedValue('라떼 한 잔');
+  tap('손끝길 시작'); await settle();
+  openMenu(); tap('주문 입력 열기'); tap('기기 음성 인식으로 주문하기'); await settle();
+  expect(text()).toContain('어떤 메뉴인가요'); expect(text()).not.toContain('네, 이 주문으로 안내 시작');
+  tap('카페라떼 선택'); await settle();
+  expect(text()).toContain('네, 이 주문으로 안내 시작'); expect(mockNative.setTarget).not.toHaveBeenCalled();
+});
+
+test('recording completion keeps inference pending, while navigating away rejects a late result', async () => {
+  let resolveSpeech: (value: string) => void = () => {};
+  mockNative.listen.mockImplementation(() => new Promise(resolve => {resolveSpeech = resolve;}));
+  tap('손끝길 시작'); await settle();
+  openMenu(); tap('주문 입력 열기'); tap('자체 모델로 말로 주문하기');
+  tap('말하기 완료'); expect(mockNative.finishListening).toHaveBeenCalledTimes(1);
+  tap('메인 화면으로'); await act(async () => resolveSpeech('아메리카노 두 잔'));
+  await settle(); expect(mockNative.correctMenuSpeech).not.toHaveBeenCalled(); expect(text()).not.toContain('네, 이 주문으로 안내 시작');
 });
 afterEach(() => {act(() => root.unmount()); jest.restoreAllMocks();});
 function openMenu() {tap('메뉴·설정 열기');}

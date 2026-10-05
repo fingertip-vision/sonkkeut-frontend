@@ -2,8 +2,8 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {AppState, BackHandler, Linking, PermissionsAndroid, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Camera, useCameraDevice, useCameraFormat} from 'react-native-vision-camera';
-import {Sonkkeut, useSonkkeut} from 'react-native-sonkkeut';
-import type {GuidanceEvent, ModelDownloadProgress, ScreenStructure, SpeechModelStatus} from 'react-native-sonkkeut';
+import {MenuRagIndex, Sonkkeut, useSonkkeut} from 'react-native-sonkkeut';
+import type {GuidanceEvent, MenuRagResult, ModelDownloadProgress, ScreenStructure, SpeechModelStatus} from 'react-native-sonkkeut';
 import type {Action, MenuItem} from './src/domain';
 import {isReadableElement, OrderFlow, parseOrder, screenReading} from './src/domain';
 import {clearUsage, DEFAULT_MENU, enqueueUsage, flushUsage, validateBaseUrl} from './src/backend';
@@ -30,6 +30,10 @@ export default function App() {
   const [foreground, setForeground] = useState(true);
   const [paused, setPaused] = useState(false);
   const [order, setOrder] = useState('');
+  const [speechResult, setSpeechResult] = useState<MenuRagResult>();
+  const [speechProvider, setSpeechProvider] = useState('');
+  const [heardText, setHeardText] = useState('');
+  const [finishingSpeech, setFinishingSpeech] = useState(false);
   const [listening, setListening] = useState(false);
   const [speechModel, setSpeechModel] = useState<SpeechModelStatus>();
   const [modelDownloading, setModelDownloading] = useState(false);
@@ -268,7 +272,7 @@ export default function App() {
     }
     if (!ai.ready) {flow.enter('SE', ai.error || '모델을 준비하고 있습니다. 잠시 후 다시 시작해 주세요.'); refresh(); return;}
     setPermission(true); setRunning(true); setPage('home'); setSettings(false); setPaused(false); setCameraError(false); setReaderScreen(undefined); setGuidance(undefined); setVerification(undefined); setCaptions([]); flow.paused = false;
-    generation.current++; flow.reset(); applied.current = undefined; screenSeen.current = false; announced.current = ''; setOrder('');
+    generation.current++; flow.reset(); applied.current = undefined; screenSeen.current = false; announced.current = ''; setOrder(''); setSpeechResult(undefined); setHeardText('');
     orderPrompted.current = false;
     flow.enter('S1', '휴대폰을 가슴 높이에서 화면 쪽으로 들어 주세요');
     startedAt.current = Date.now(); recorded.current = false; steps.current = []; refresh();
@@ -285,8 +289,21 @@ export default function App() {
   }
   async function listen(provider: 'custom' | 'system' = 'custom') {
     const token = ++generation.current;
-    setListening(true);
-    try {const text = await Sonkkeut.listen(provider); if (token === generation.current && page === 'order' && foreground) {submit(text);}}
+    setListening(true); setFinishingSpeech(false); setHeardText(''); setSpeechResult(undefined); setSpeechProvider(provider === 'custom' ? '자체 음성 인식' : '기기 음성 인식');
+    try {
+      const text = await Sonkkeut.listen(provider);
+      if (token !== generation.current) {return;}
+      setHeardText(text);
+      const scope = JSON.stringify([sessionConfig.current.server, storeCode ?? 'detected', appliedMenuVersion.current ?? 0]);
+      const result = await Sonkkeut.correctMenuSpeech(text, scope, menu);
+      if (token === generation.current && page === 'order' && foreground) {
+        setListening(false); setSpeechResult(result); setOrder(result.text);
+        if (result.ambiguities.length) {
+          Sonkkeut.clearTarget(); flow.intent = undefined; flow.confirmed = false; flow.remaining = [];
+          flow.enter('S3', '비슷한 메뉴가 있습니다. 아래에서 메뉴를 선택하거나 다시 말씀해 주세요.'); refresh(); Sonkkeut.announce(flow.message);
+        } else {submit(result.text);}
+      }
+    }
     catch (e) {if (token === generation.current && page === 'order' && foreground) {flow.enter('S3', (e as Error).message || '다시 말씀해 주세요'); refresh();}}
     finally {if (token === generation.current) {setListening(false);}}
   }
@@ -345,6 +362,7 @@ export default function App() {
     persistSettings(patch).catch(() => setSettingsMessage('설정을 저장하지 못했습니다. 다시 선택해 주세요.'));
   }
   function openPage(next: typeof page) {
+    if (next !== page) {generation.current++; setListening(false); Sonkkeut.cancelListening();}
     if (next !== 'home' && running) {
       generation.current++; applied.current = undefined; flow.paused = true; setPaused(true); setListening(false); setGuidance(undefined);
       Sonkkeut.clearTarget(); Sonkkeut.stop(); Sonkkeut.silence(); Sonkkeut.cancelListening();
@@ -435,7 +453,22 @@ export default function App() {
       </>}
       {page === 'order' && <>
         <Text style={styles.small}>{flow.confirmed ? '확인한 주문은 안내 도중 바꾸지 않습니다.' : '여기서는 카메라 안내가 멈춰 있습니다. 주문을 확인하면 메인 화면으로 돌아갑니다.'}</Text>
-        {flow.intent && <View style={styles.card}>
+          {speechResult && <View style={styles.card}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>{speechProvider} 결과</Text>
+            <Text style={styles.body}>들은 문장 · {heardText}</Text>
+            {speechResult.text !== heardText && <Text style={styles.body}>메뉴와 표현 보정 · {speechResult.text}</Text>}
+            <Text style={styles.small}>메뉴·수량·온도를 확인해 주세요. 확인 버튼을 누르기 전에는 주문 안내를 시작하지 않습니다.</Text>
+            {speechResult.ambiguities.slice(0, 1).map(ambiguity => <View key={`${ambiguity.start}:${ambiguity.end}`}>
+              <Text accessibilityLiveRegion="polite" style={styles.body}>‘{ambiguity.original}’는 어떤 메뉴인가요?</Text>
+              {ambiguity.candidates.map(candidate => <Button key={candidate.name} title={`${candidate.name}${candidate.sold_out ? ' · 품절' : ' 선택'}`} disabled={candidate.sold_out || listening} secondary onPress={() => {
+                const text = speechResult.original.slice(0, ambiguity.start) + candidate.name + speechResult.original.slice(ambiguity.end);
+                const next = new MenuRagIndex(menu).correct(text);
+                setSpeechResult(next); setOrder(next.text);
+                if (!next.ambiguities.length) {submit(next.text);}
+              }}/>) }
+            </View>)}
+          </View>}
+          {flow.intent && <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>{flow.confirmed ? '확인한 주문' : '주문이 맞나요?'}</Text>
           {flow.intent.items.map((item, index) => <View key={`${item.menu}-${index}`} style={styles.menuRow}><Text style={styles.body}>{item.menu} · {item.qty}개</Text><Text style={styles.small}>{[item.options.temp === 'hot' ? '따뜻한' : item.options.temp === 'ice' ? '아이스' : '온도 선택 없음', item.options.size, flow.confirmed ? `담기 ${item.qty - (flow.remaining[index] ?? item.qty)}/${item.qty}` : undefined].filter(Boolean).join(' · ')}</Text></View>)}
           <Text style={styles.body}>이용 방법 · {flow.intent.dine || '매장 / 포장 확인 필요'}</Text>
@@ -448,8 +481,9 @@ export default function App() {
           <Button title={listening ? '주문을 듣고 처리하고 있습니다' : '자체 모델로 말로 주문하기'} onPress={() => {listen();}} disabled={listening || !speechModel?.ready || !foreground}/>
           {!speechModel?.ready && <Button title="음성 모델 준비 열기" secondary onPress={() => {setSpeechSettings(true); openPage('settings');}}/>}
           <Button title="기기 음성 인식으로 주문하기" secondary onPress={() => {listen('system');}} disabled={listening || modelDownloading || modelPreparing || !foreground}/>
+            {listening && speechProvider === '자체 음성 인식' && <Button title={finishingSpeech ? '말씀하신 주문을 텍스트로 바꾸고 있습니다' : '말하기 완료'} secondary disabled={finishingSpeech} onPress={() => {setFinishingSpeech(true); Sonkkeut.finishListening();}}/>}
           {listening && <Button title="음성 입력 취소" secondary onPress={() => {generation.current++; setListening(false); Sonkkeut.cancelListening();}}/>}
-          <TextInput accessibilityLabel="주문 문장" editable={!listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor={colors.muted} value={order} onChangeText={setOrder} style={styles.input} multiline/>
+            <TextInput accessibilityLabel="주문 문장" editable={!listening} placeholder="따뜻한 아메리카노 두 잔 포장" placeholderTextColor={colors.muted} value={order} onChangeText={value => {setSpeechResult(undefined); setOrder(value);}} style={styles.input} multiline/>
           <Button title="입력한 주문 확인" onPress={() => submit(order)} disabled={listening || !order.trim()}/>
         </View>}
       </>}

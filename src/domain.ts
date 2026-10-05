@@ -17,7 +17,9 @@ export function isReadableElement(e: ScreenElement) {
 
 export function parseOrder(utterance: string, menu: MenuItem[]): Intent {
   if (/\d[.,]\d\s*(?:잔|개)/.test(utterance)) {throw new Error('수량은 메뉴당 1개에서 10개까지 정수로 입력해 주세요.');}
-  const text = normalize(utterance);
+  // Polite endings are accepted without dropping unknown menus or unsupported options.
+  const text = normalize(utterance).replace(/매장에서/g, '매장').replace(/먹고갈게요|먹고가요/g, '먹고갈')
+    .replace(/주시겠어요|주문할게요|할게요|줘요|부탁드려요/g, '주세요');
   if (!text) {throw new Error('주문을 말씀해 주세요.');}
   const matches: {item: MenuItem; pos: number; length: number}[] = [];
   for (const item of menu) {
