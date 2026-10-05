@@ -1,7 +1,7 @@
 # 손끝길 · Signal Studio
 
 2026-10-06. ‘명확한 신호’를 발전시킨 대표 화면의 실행 가능한 Compose 시안.
-기준 커밋 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`. 최초 작업 브랜치는 `codex/uiux-design-audit-20261006`이며, 확인된 디자인은 포크 `hy2oni/sonkkeut-frontend`의 `develop_ui_desgin`에 보존한다. 후속 기능 통합은 이 커밋에서 분기한 `develop_ui_update`에서 진행한다.
+기준 커밋 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`. 최초 작업 브랜치는 `codex/uiux-design-audit-20261006`이며, 확인된 디자인은 포크 `hy2oni/sonkkeut-frontend`의 `develop_ui_design`에 보존한다. 후속 기능 통합은 이 커밋에서 분기한 `develop_ui_update`에서 진행한다.
 
 ## 실제 Compose 캡처
 

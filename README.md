@@ -2,7 +2,7 @@
 
 ## UI/UX 디자인 작업 브랜치
 
-`develop_ui_desgin`은 ‘명확한 신호’를 발전시킨 **손끝길 · Signal** 디자인 보존 브랜치입니다. [실제 화면·설계·검증 결과](docs/uiux-audit/signal-studio/README.md)를 확인하세요. 시안은 별도 `:ui-tooling-probe` 앱(`com.sonkkeut.tooling`)이며, 아래 0.2.4 제품 앱에 기능 통합된 상태는 아닙니다. 시안 소스·이미지·글꼴·테스트·도구 설정을 포함합니다. APK와 로컬 빌드 로그는 Git에 포함하지 않습니다.
+`develop_ui_design`은 ‘명확한 신호’를 발전시킨 **손끝길 · Signal** 디자인 보존 브랜치입니다. [실제 화면·설계·검증 결과](docs/uiux-audit/signal-studio/README.md)를 확인하세요. 시안은 별도 `:ui-tooling-probe` 앱(`com.sonkkeut.tooling`)이며, 아래 0.2.4 제품 앱에 기능 통합된 상태는 아닙니다. 시안 소스·이미지·글꼴·테스트·도구 설정을 포함합니다. APK와 로컬 빌드 로그는 Git에 포함하지 않습니다.
 
 후속 `develop_ui_update`는 이 디자인 커밋에서 시작하는 기능 통합 작업 브랜치입니다. 배포된 제품의 기준은 원본 `develop_ui/ux`의 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`이며, 기존 AI·카메라·주문·음성 동작을 기준으로 통합합니다.
 
