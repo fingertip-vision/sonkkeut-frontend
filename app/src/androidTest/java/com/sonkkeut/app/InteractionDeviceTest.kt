@@ -32,6 +32,11 @@ class InteractionDeviceTest {
     }
     private fun say(model: NativeAppModel,text: String) { model.conversation.spoken(text,SpeechEvidence()) }
     private fun completeAck(model: NativeAppModel) { val turn=model.dialogTurn!!; assertNotNull(turn.accepted); model.dialogPromptCompleted(turn.generation,true) }
+    private fun finishDraft(model: NativeAppModel) {
+        say(model,"주문 시작"); completeAck(model)
+        assertEquals(VoiceSlot.DRAFT_CONFIRM,model.conversation.dialog.slot)
+        say(model,"네"); completeAck(model)
+    }
     private fun beginMenu(model: NativeAppModel) {
         model.conversation.begin(); assertEquals(DialogState.WAITING_SCREEN,model.conversation.dialog.state)
         model.conversation.onScreen(RecognizedScreen("menu",1,model.menu.map { RecognizedElement(it.name,"menu",it.name,listOf(.1,.1,.5,.3),true) },0,null,null))
@@ -42,11 +47,14 @@ class InteractionDeviceTest {
         say(model,first); say(model,"네"); completeAck(model)
         assertEquals(VoiceSlot.QUANTITY,model.conversation.dialog.slot); assertNull(model.order)
         say(model,"두개"); say(model,"네"); completeAck(model)
+        assertNull(model.order); assertEquals(2,model.conversation.draftItems.single().qty)
+        finishDraft(model)
         assertEquals(first,model.order!!.items.single().menu); assertEquals(2,model.order!!.items.single().qty)
     }
     @Test fun scriptedScreenTransitionInvalidatesOldConfirmationAndAsksOnlyTemperature() = replay { model ->
         beginMenu(model); val name=model.menu.first { !it.soldOut }.name
         say(model,name); say(model,"네"); completeAck(model); say(model,"한개"); say(model,"네"); completeAck(model)
+        finishDraft(model)
         fun el(id: String,text: String)=RecognizedElement(id,"button",text,listOf(.1,.1,.5,.3),true)
         model.conversation.onScreen(RecognizedScreen("option",10,listOf(el("name",name),el("ice","아이스"),el("hot","따뜻하게"),el("size","라지")),0,null,null))
         assertEquals(VoiceSlot.TEMPERATURE,model.conversation.dialog.slot)
@@ -100,5 +108,24 @@ class InteractionDeviceTest {
                 assertTrue(result.tilesCompleted>0); assertTrue(result.elapsedMs<12000)
             }
         } finally { rgb.release(); rgba.release(); bitmap.recycle(); sample.recycle() }
+    }
+    @Test fun multipleVoiceItemsEditDeleteUndoAndFinalConfirmationPreserveWholeDraft() = replay { model ->
+        beginMenu(model); val menus=model.menu.filter { !it.soldOut }.take(2); assertEquals(2,menus.size)
+        fun add(name: String) { say(model,name); say(model,"네"); completeAck(model); say(model,"한개"); say(model,"네"); completeAck(model) }
+        add(menus[0].name); say(model,"메뉴 추가"); completeAck(model); add(menus[1].name)
+        assertNull(model.order); assertEquals(2,model.conversation.draftItems.size)
+        say(model,"첫번째 하나 더"); assertEquals(1,model.conversation.draftItems[0].qty)
+        say(model,"네"); completeAck(model); assertEquals(listOf(2,1),model.conversation.draftItems.map { it.qty })
+        say(model,"두번째 삭제"); say(model,"네"); completeAck(model); assertEquals(1,model.conversation.draftItems.size)
+        say(model,"되돌리기"); say(model,"네"); completeAck(model); assertEquals(2,model.conversation.draftItems.size)
+        finishDraft(model); assertEquals(listOf(2,1),model.order!!.items.map { it.qty }); assertFalse(model.conversation.reviewingDraft)
+    }
+    @Test fun incidentalScreenChangeCannotCommitOrLoseDraftEdit() = replay { model ->
+        beginMenu(model); val name=model.menu.first { !it.soldOut }.name
+        say(model,name); say(model,"네"); completeAck(model); say(model,"한개"); say(model,"네"); completeAck(model)
+        say(model,"1번 삭제"); val token=model.dialogTurn!!.generation
+        model.conversation.onScreen(RecognizedScreen("cart",99,emptyList(),3,10000,null))
+        assertEquals(token,model.dialogTurn!!.generation); assertEquals(1,model.conversation.draftItems.size); assertNull(model.order)
+        say(model,"아니요"); assertEquals(1,model.conversation.draftItems.size)
     }
 }

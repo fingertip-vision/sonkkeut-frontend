@@ -1,11 +1,15 @@
-# 손끝길 · Kotlin Android 앱 0.2.1
+# 손끝길 · Kotlin Android 앱 0.2.3
+
+0.2.3은 매장별 관련 표현·설명 검색 DB, 읽힌 장바구니 상품 수량 대조, 결제 완료 문구·주문 번호 읽기를 추가합니다. [사용법과 남은 범위](docs/knowledge-checkout.md)를 참고하세요. 실제 결제 실행이나 매장별 삭제 버튼 자동 연동은 포함하지 않습니다.
+
+0.2.2에서 추가한 여러 메뉴의 음성 주문 목록, 확인 후 수량 변경·삭제·되돌리기, 화면에서 읽은 당도·얼음·샷 옵션, 최대 3개 메뉴 후보 선택, 항상 음성 확인 설정을 유지합니다. [사용법과 남은 범위](docs/order-improvements.md)를 확인하세요.
 
 현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델, 매장별 SQLite 메뉴 보정, AWS 자동 연결을 유지합니다.
 
-- [Kotlin APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.1-voice-dialog/sonkkeut-kotlin.apk) · 기존 앱에 업데이트 설치
+- [Kotlin APK 0.2.3 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.3-order-knowledge/sonkkeut-kotlin-0.2.3.apk) · 기존 앱에 업데이트 설치
 - [Android Studio 실행과 네이티브 구조](docs/native-kotlin.md) · 이 레포의 루트 폴더를 Open
 - 프론트 `native/kotlin-20261005`, 형제 AI 레포 `codex/unified-ai-20261003` 필요
-- 단위 테스트 83개, 에뮬레이터 테스트 18개 통과. S26 Ultra 실물 사용성은 미검증
+- 단위 테스트 107개, 에뮬레이터 테스트 23개 통과. S26 Ultra 실물 사용성은 미검증
 
 0.2.1은 현재 키오스크 화면부터 시작하는 단계별 음성 확인·수정, 스크롤/탭 탐색 안내, 유사 메뉴 제안, 사용자 준비 후 근접 타일 OCR을 추가합니다. 메뉴·설정의 **음성만으로 단계별 주문**에서 시작하세요. [사용법·상태 흐름·검증 범위](docs/voice-interaction.md)를 확인하세요. 의미 추천은 소규모 음식 개념 사전의 코사인 벡터이며 신경망 임베딩·LLM은 포함하지 않습니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
 

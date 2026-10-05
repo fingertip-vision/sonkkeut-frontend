@@ -45,4 +45,18 @@ class NativeAppTest {
         compose.onNodeWithText("메뉴·설정").assertExists()
         assertFalse(model().paused)
     }
+    @Test fun knowledgeEditorAndReceiptReaderAreReachableAndReaderStopsOnExit() {
+        compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
+        compose.onNodeWithText("메뉴·설정").performClick()
+        compose.onNodeWithText("이 매장 메뉴 검색 정보").performScrollTo().performClick()
+        compose.onNodeWithText(model().menu.first().name+if(model().menu.first().soldOut) " · 품절" else "").performScrollTo().performClick()
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(2)
+        compose.onNodeWithText("‹ 뒤로").performScrollTo().performClick()
+        compose.onNodeWithText("결제 완료·주문 번호 읽기").performScrollTo().performClick()
+        compose.waitUntil(10000) { model().readingReceipt }
+        assertEquals("S6",model().orderFlow.state)
+        compose.onNodeWithText("메뉴·설정").performClick()
+        assertFalse(model().readingReceipt)
+        compose.runOnUiThread { model().pause() }
+    }
 }

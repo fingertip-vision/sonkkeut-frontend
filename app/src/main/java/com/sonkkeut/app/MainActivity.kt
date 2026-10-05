@@ -67,7 +67,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
         if(cameraGranted && ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.startConversation()
         else model.announce("음성 주문에는 카메라와 마이크 권한이 필요합니다.")
     }
-    SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]) }
+    SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]); model.conversation.dialog.alwaysConfirm=preferences.alwaysConfirm }
     DisposableEffect(output) { onDispose { output.close() } }
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,event ->
@@ -94,7 +94,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     fun go(page: String) { pendingMic=false; output.stop(); model.open(page) }
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
-            "home" -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            "home" -> if(model.conversation.reviewingDraft) NativeDraftPage(model) else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text("손끝길",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f).semantics { heading() })
                     TextButton(onClick={go("menu")},modifier=Modifier.heightIn(min=56.dp)) { Text("메뉴·설정") }
@@ -127,6 +127,8 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
                 NativeButton("화면·카메라·음성 설정") { go("accessibility") }
                 NativeButton("서버·매장 설정") { go("connection") }
+                NativeButton("이 매장 메뉴 검색 정보") { go("knowledge") }
+                NativeButton("결제 완료·주문 번호 읽기",enabled=model.ready && cameraGranted) { model.startReceiptReading() }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text("익명 사용 통계 전송",modifier=Modifier.weight(1f))
                     Switch(model.usageConsent,{model.changeUsageConsent(it)},modifier=Modifier.semantics { contentDescription="익명 사용 통계 전송" })
@@ -135,6 +137,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 Text("Kotlin 앱 ${BuildConfig.VERSION_NAME} · 휴대폰에서 OCR·손끝·음성 추론",style=MaterialTheme.typography.bodyMedium)
             }
             "accessibility" -> AccessibilitySettings { go("menu") }
+            "knowledge" -> NativeKnowledgePage(model) { go("menu") }
             "connection" -> NativePage("서버·매장 설정",{go("menu")}) {
                 var base by rememberSaveable { mutableStateOf(model.server) }
                 var code by rememberSaveable { mutableStateOf(model.storeCode) }
@@ -181,8 +184,57 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     }
                 }
                 Text(model.message,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
-                if(model.order!=null && !model.speechBusy && model.rag?.ambiguities.isNullOrEmpty()) NativeButton("네, 이 주문으로 안내 시작") { output.resumeOutput(); model.confirm() }
+                if(model.order!=null && model.flowState=="S3" && !model.speechBusy && model.rag?.ambiguities.isNullOrEmpty()) NativeButton("네, 이 주문으로 안내 시작") { output.resumeOutput(); model.confirm() }
             }
+        }
+    }
+}
+
+@Composable
+private fun NativeKnowledgePage(model: NativeAppModel,back: ()->Unit) {
+    var name by rememberSaveable(model.server,model.storeCode) { mutableStateOf("") }
+    var terms by rememberSaveable(model.server,model.storeCode) { mutableStateOf("") }
+    var description by rememberSaveable(model.server,model.storeCode) { mutableStateOf("") }
+    NativePage("이 매장 메뉴 검색 정보",back) {
+        Text("${model.storeName} · ${model.storeCode}")
+        Text("관련 표현은 이 휴대폰의 해당 매장에만 저장합니다. 예: 까르보나라에 ‘크림 파스타’를 등록하면 관련 후보로 제안하며, 같은 음식이라고 자동 확정하지 않습니다.")
+        if(name.isNotBlank()) {
+            Text("선택한 메뉴: $name",style=MaterialTheme.typography.titleLarge)
+            OutlinedTextField(terms,{terms=it},label={Text("관련 표현 · 쉼표로 구분")},modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(description,{description=it},label={Text("메뉴 설명 · 검색용")},modifier=Modifier.fillMaxWidth(),minLines=2)
+            NativeButton("이 매장에 저장") { model.saveKnowledge(name,terms,description) }
+            NativeButton("내가 등록한 검색 정보 삭제") { model.saveKnowledge(name,"","",true); terms=""; description="" }
+        }
+        Text(model.knowledgeMessage,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+        Text("설명은 검색에만 사용합니다. 재료나 알레르기의 확인된 정보로 사용하지 않습니다.")
+        model.menu.forEach { item -> NativeButton(item.name+if(item.soldOut) " · 품절" else "") {
+            name=item.name; val saved=model.localKnowledge(name); terms=saved?.terms?.joinToString(", ") ?: ""; description=saved?.description ?: ""
+        } }
+    }
+}
+
+@Composable
+private fun NativeDraftPage(model: NativeAppModel) {
+    val conversation=model.conversation
+    NativePage("주문 목록 확인",{ conversation.stop() }) {
+        Text("키오스크에 담기 전 주문 목록입니다. 수량과 항목을 수정한 뒤 안내를 시작하세요.")
+        conversation.draftItems.forEachIndexed { index,item ->
+            Text("${index+1}번 ${item.menu} · ${item.qty}개",style=MaterialTheme.typography.titleLarge)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                NativeButton("${index+1}번 하나 빼기",Modifier.weight(1f),item.qty>1 && conversation.dialog.slot==VoiceSlot.DRAFT) { conversation.draftCommand("${index+1}번 하나 빼") }
+                NativeButton("${index+1}번 하나 더",Modifier.weight(1f),item.qty<10 && conversation.dialog.slot==VoiceSlot.DRAFT) { conversation.draftCommand("${index+1}번 하나 더") }
+            }
+            NativeButton("${index+1}번 삭제",enabled=conversation.dialog.slot==VoiceSlot.DRAFT) { conversation.draftCommand("${index+1}번 삭제") }
+            HorizontalDivider()
+        }
+        Text(model.message,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+        if(conversation.dialog.state==DialogState.VERIFYING || conversation.dialog.slot==VoiceSlot.DRAFT_CONFIRM) {
+            NativeButton("네, 확인") { conversation.draftAnswer(true) }
+            NativeButton("아니요, 다시 선택") { conversation.draftAnswer(false) }
+        } else {
+            NativeButton("메뉴 추가",enabled=conversation.draftItems.size<10) { conversation.draftCommand("메뉴 추가") }
+            NativeButton("이전 수정 되돌리기") { conversation.draftCommand("되돌리기") }
+            NativeButton("전체 주문 확인 후 안내 시작",enabled=conversation.draftItems.isNotEmpty()) { conversation.draftCommand("주문 시작") }
         }
     }
 }

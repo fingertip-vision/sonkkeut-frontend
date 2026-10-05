@@ -1,4 +1,8 @@
-# 손끝길 Kotlin Android 앱 · 0.2.1
+# 손끝길 Kotlin Android 앱 · 0.2.3
+
+현재 빌드는 [매장 검색 DB·주문 확인](knowledge-checkout.md)을 포함한다. 현재 검증 기록은 `knowledge-checkout-validation.json`이다.
+
+0.2.2의 주문 목록·추가 옵션·음성 확인 변경과 검증 범위는 [추가 구현 문서](order-improvements.md)를 참고한다. 아래 0.2.1 커밋·검사 수는 이전 릴리스 기록이며, 현재 로컬 결과는 `order-improvements-validation.json`에 별도 기록한다.
 
 이 브랜치의 기본 앱은 **Kotlin + Jetpack Compose + CameraX**다. 프론트 화면·음성 결과·주문 해석·주문 확인·버튼 계획·메뉴 검색을 Kotlin으로 실행한다. 빌드와 실행에 npm, Node, Metro, React Native가 필요하지 않다.
 
@@ -14,7 +18,7 @@ workspace/
 
 프론트는 `native/kotlin-20261005`, AI는 `codex/unified-ai-20261003` 브랜치가 필요하다. 프론트 루트의 `settings.gradle.kts`가 AI 레포의 `android/sonkkeut-native` 모듈을 직접 포함한다. SDK 35, JDK 17, Gradle 8.10.2, AGP 8.7.2, Kotlin 1.9.25 / Compose compiler 1.5.15를 사용한다. Android Studio가 SDK 경로를 지정한 `local.properties`를 만든 뒤 `app` 실행 구성을 선택한다.
 
-이 APK의 AI 소스와 문서 기준 커밋: `80d3dfcdaec24144334e1236319237bf44651154`.
+0.2.3 APK의 AI 소스 기준 커밋: `d9938b2f3e999b093942c4a882264a3fbc2ca8b8`. 이전 0.2.1 기준은 `80d3dfcdaec24144334e1236319237bf44651154`이다.
 
 ```powershell
 ./gradlew.bat :app:assembleRelease :app:testDebugUnitTest

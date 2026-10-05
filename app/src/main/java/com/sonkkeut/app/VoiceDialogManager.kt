@@ -1,7 +1,7 @@
 package com.sonkkeut.app
 
 enum class DialogState { IDLE, PROMPTING, LISTENING, VERIFYING, RETRY_VOICE_CAPTURE, WAITING_SCREEN, FALLBACK, STOPPED }
-enum class VoiceSlot { CATEGORY, MENU, QUANTITY, DINE, TEMPERATURE, SIZE, RECOMMENDATION, EXACT_SEARCH, SCAN_CONTROL, NAVIGATION, CHECKOUT }
+enum class VoiceSlot { CATEGORY, MENU, QUANTITY, DINE, TEMPERATURE, SIZE, RECOMMENDATION, EXACT_SEARCH, SCAN_CONTROL, NAVIGATION, CHECKOUT, DRAFT, DRAFT_CONFIRM, EXTRA_OPTION, MENU_CANDIDATE }
 data class SpeechEvidence(val probability: Double?=null,val decoderScore: Double?=null,val noSpeech: Double=0.0) {
     // These are conservative provider-specific heuristics, not calibrated accuracy probabilities.
     fun strong() = noSpeech<.2 && (probability?.let { it.isFinite() && it>=.9 && it<=1 } ?: (decoderScore?.let { it.isFinite() && it>=-.15 && it<=0 } ?: false))
@@ -10,6 +10,7 @@ data class DialogTurn(val generation: Long,val prompt: String,val listen: Boolea
 
 /** Screen-scoped input; only a completed current utterance may open the microphone. */
 class VoiceDialogManager(val maxRetries: Int=3) {
+    var alwaysConfirm=false
     var state=DialogState.IDLE; private set
     var generation=0L; private set
     var slot=VoiceSlot.MENU; private set
@@ -58,11 +59,12 @@ class VoiceDialogManager(val maxRetries: Int=3) {
         val accepted=exact ?: if(slot==VoiceSlot.MENU && clean.length in 2..60 && Regex("[가-힣a-z0-9]+").matches(clean)
             && clean !in listOf("아니","아니오","아니요","맞아요","맞아","취소","다음","없어요")) clean else null
         if(accepted==null) return retry(if(value.isBlank()) "음성을 듣지 못했습니다." else "현재 화면의 선택으로 이해하지 못했습니다.")
-        if(exact!=null && slot in listOf(VoiceSlot.RECOMMENDATION,VoiceSlot.EXACT_SEARCH,VoiceSlot.SCAN_CONTROL,VoiceSlot.NAVIGATION,VoiceSlot.CHECKOUT)) {
+        if(exact!=null && slot in listOf(VoiceSlot.RECOMMENDATION,VoiceSlot.EXACT_SEARCH,VoiceSlot.SCAN_CONTROL,VoiceSlot.NAVIGATION,VoiceSlot.CHECKOUT,VoiceSlot.DRAFT_CONFIRM)) {
             awaitingConfirmation=false; pending=null; retries=0
             return turn(if(accepted=="아니요") "다른 방법으로 확인할게요." else "알겠습니다.",false,accepted)
         }
-        if(implicit && exact!=null && evidence.strong() && !awaitingConfirmation) { retries=0; return turn("${label(accepted)} 선택할게요.",false,accepted) }
+        if(slot==VoiceSlot.DRAFT && exact in listOf("메뉴 추가","목록 읽기","주문 시작")) return turn("알겠습니다.",false,exact)
+        if(implicit && !alwaysConfirm && slot !in listOf(VoiceSlot.DRAFT,VoiceSlot.EXTRA_OPTION,VoiceSlot.MENU_CANDIDATE) && exact!=null && evidence.strong() && !awaitingConfirmation) { retries=0; return turn("${label(accepted)} 선택할게요.",false,accepted) }
         pending=accepted; awaitingConfirmation=true; retries=0
         return turn("${label(accepted)} 맞으신가요? 네 또는 아니요라고 말씀해 주세요.")
     }

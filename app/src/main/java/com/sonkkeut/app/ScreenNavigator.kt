@@ -20,12 +20,14 @@ class ScreenNavigator(private val maxScrolls: Int=3,private val maxTabs: Int=4) 
     private var fingerStart: Pair<Double,Double>?=null
     private var dragged=false
     private var started=Long.MIN_VALUE
+    private var goal=""
     private var scrollRegion=listOf(.15,.25,.85,.85)
     private fun n(s: String)=NativeOrderParser.normalize(s.replace(Regex("[0-9,]+\\s*원"),""))
-    fun reset() { observed.clear(); visited.clear(); views.clear(); offset=0; unchanged=0; total=0; awaiting=null; lastFrame=-1; dragged=false; fingerStart=null; started=Long.MIN_VALUE }
+    fun reset() { observed.clear(); visited.clear(); views.clear(); offset=0; unchanged=0; total=0; awaiting=null; lastFrame=-1; dragged=false; fingerStart=null; started=Long.MIN_VALUE; goal="" }
     fun signature(screen: RecognizedScreen)=screen.type+":"+screen.elements.filter { it.readable && it.kind in listOf("menu","tab") }.map { it.kind+":"+n(it.text) }.sorted().joinToString("|")
     fun hasChanged(screen: RecognizedScreen)=awaiting!=null && signature(screen)!=pendingSignature
     fun findMenuItem(name: String,screen: RecognizedScreen,now: Long): DetectionResult {
+        if(goal!=n(name)) { reset(); goal=n(name) }
         if(screen.keyframe<=lastFrame) return DetectionResult(DetectionStatus.WAITING_CHANGE)
         lastFrame=screen.keyframe
         if(started==Long.MIN_VALUE) started=now

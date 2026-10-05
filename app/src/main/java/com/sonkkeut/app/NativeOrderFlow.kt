@@ -17,8 +17,14 @@ class NativeOrderFlow {
     private var pending: PendingAdd? = null
     fun currentItem() = order?.items?.getOrNull(remaining.indexOfFirst { it>0 })
     fun allAdded() = order!=null && remaining.none { it>0 }
+    fun finishGuidance() { action=null; pending=null; confirmed=false; paused=true; enter("S6","주문 조작 안내를 마쳤습니다.") }
     fun optionApplied(value: String) = value in configured || screen?.elements.orEmpty().any { e ->
         e.id in screen?.selected.orEmpty() && when(value) { "ice" -> Regex("^(ice|iced|아이스|차갑게)$").matches(NativeOrderParser.normalize(e.text)); "hot" -> Regex("^(hot|핫|따뜻한|따뜻하게)$").matches(NativeOrderParser.normalize(e.text)); else -> NativeOrderParser.normalize(e.text)==NativeOrderParser.normalize(value) }
+    }
+    fun updateExtra(group: String,option: ExtraOption): NativeOrder? {
+        val intent=order ?: return null; val index=remaining.indexOfFirst { it>0 }
+        order=intent.copy(items=intent.items.mapIndexed { i,item -> if(i==index) item.copy(extras=item.extras+(group to option)) else item })
+        action=null; enter("S2","추가 옵션을 화면에서 확인합니다."); return order
     }
     fun updateChoice(field: String,value: String): NativeOrder? {
         val intent=order ?: return null; val index=remaining.indexOfFirst { it>0 }
@@ -86,7 +92,9 @@ class NativeOrderFlow {
         if (index < 0) {
             if (current.type != "cart") return choose(find("장바구니|주문내역"), "navigate", mapOf("screen_type" to "cart"))
             if (current.cartCount != null && current.cartCount != intent.items.sumOf { it.qty }) { enter("SE","주문 수량과 장바구니 수량이 다릅니다."); return null }
-            val expected = if (intent.items.all { it.price != null }) intent.items.sumOf { it.price!! * it.qty } else null
+            val audit=CartReader.inspect(intent,current)
+            if(audit.mismatch) { enter("SE",audit.message); return null }
+            val expected = intent.expectedTotal()
             if (expected != null && current.total != expected) { enter("SE", if (current.total == null) "총 금액을 읽지 못했습니다. 장바구니를 다시 확인해 주세요." else "주문 예상 금액과 장바구니 금액이 다릅니다."); return null }
             return choose(find("^(결제|결제하기|주문하기|카드결제)$"), "checkout", mapOf("screen_type" to "payment"), "${current.total?.let { "${it}원입니다. " } ?: ""}결제 버튼으로 안내합니다")
         }
@@ -101,7 +109,7 @@ class NativeOrderFlow {
             }
             "option" -> {
                 if (usable.none(::isItem)) { enter("SE","다른 메뉴의 옵션 화면입니다. 뒤로 돌아가 주문 메뉴를 확인해 주세요."); return null }
-                for (value in listOfNotNull(item.temperature,item.size)) {
+                for (value in listOfNotNull(item.temperature,item.size)+item.extras.values.map { it.label }) {
                     val target = find(when(value) { "hot" -> "^(hot|핫|따뜻한|따뜻하게)$"; "ice" -> "^(ice|iced|아이스|차갑게)$"; else -> "^${Regex.escape(NativeOrderParser.normalize(value))}$" })
                     if (target != null && current.selected?.contains(target.id) == true) configured += value
                     else if (target == null || current.selected != null || value !in configured) return choose(target,"option",mapOf("selected" to target?.id,"changed" to true),value=value)

@@ -19,6 +19,8 @@ internal class AccessibilityPreferences(context: Context) {
     private val storage = context.getSharedPreferences("accessibility", Context.MODE_PRIVATE)
     var textSize by mutableIntStateOf(storage.getInt("textSize", 1).coerceIn(0, 2)); private set
     var light by mutableStateOf(storage.getBoolean("light", false)); private set
+    var alwaysConfirm by mutableStateOf(storage.getBoolean("alwaysConfirm", true)); private set
+    fun confirmEveryChoice(value: Boolean) { alwaysConfirm=value; storage.edit().putBoolean("alwaysConfirm",value).apply() }
     var voice by mutableStateOf(storage.getBoolean("voice", true)); private set
     var vibration by mutableStateOf(storage.getBoolean("vibration", true)); private set
     var speed by mutableIntStateOf(storage.getInt("speed", 1).coerceIn(0, 2)); private set
@@ -86,6 +88,8 @@ internal fun AccessibilitySettings(onBack: () -> Unit) {
         SettingChoices("화면 색상", listOf("어둡게", "밝게"), if (preferences.light) 1 else 0) { preferences.theme(it == 1) }
         SettingToggle("음성 안내", preferences.voice, preferences::speech)
         SettingToggle("진동 안내", preferences.vibration, preferences::haptic)
+        SettingToggle("음성 선택을 항상 다시 확인", preferences.alwaysConfirm, preferences::confirmEveryChoice)
+        Text("켜두면 인식 점수가 높아도 메뉴·수량·옵션을 다시 묻습니다. 주문 수정과 결제 안내는 항상 확인합니다.")
         SettingChoices("안내 속도", listOf("느리게", "보통", "빠르게"), preferences.speed, preferences::rate)
         Text("휴대폰의 글자 크기 설정도 반영해요", style = MaterialTheme.typography.bodyLarge)
         Text("자동 음성을 꺼도 ‘다시 듣기’는 사용할 수 있어요.", style = MaterialTheme.typography.bodyLarge)

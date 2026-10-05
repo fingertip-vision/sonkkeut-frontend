@@ -3,9 +3,10 @@ package com.sonkkeut.app
 import kr.sonkkeut.android.MenuDocument
 import org.json.JSONObject
 
-data class NativeOrderItem(val menu: String, val qty: Int, val price: Int?, val temperature: String? = null, val size: String? = null)
+data class NativeOrderItem(val menu: String, val qty: Int, val price: Int?, val temperature: String? = null, val size: String? = null, val extras: Map<String, ExtraOption> = emptyMap())
 data class NativeOrder(val items: List<NativeOrderItem>, val dine: String?) {
-    fun confirmation() = items.joinToString(", ") { "${if (it.temperature == "ice") "아이스 " else if (it.temperature == "hot") "따뜻한 " else ""}${it.menu}${it.size?.let { s -> " $s" } ?: ""} ${it.qty}개" } + (dine?.let { ", $it" } ?: "") + " 맞나요?"
+    fun expectedTotal(): Int? = if(items.any { it.price==null || it.extras.values.any { option -> option.surcharge==null } }) null else items.sumOf { (it.price!!+it.extras.values.sumOf { option -> option.surcharge!! })*it.qty }
+    fun confirmation() = items.joinToString(", ") { "${if (it.temperature == "ice") "아이스 " else if (it.temperature == "hot") "따뜻한 " else ""}${it.menu}${it.size?.let { s -> " $s" } ?: ""} ${it.qty}개${if(it.extras.isEmpty()) "" else " · "+it.extras.values.joinToString { option -> option.label }}" } + (dine?.let { ", $it" } ?: "") + " 맞나요?"
 }
 object NativeOrderParser {
     private val quantities = Regex("(\\d+|하나|다섯|여섯|일곱|여덟|아홉|한|두|둘|세|셋|네|넷|열)(?:잔|개)")
