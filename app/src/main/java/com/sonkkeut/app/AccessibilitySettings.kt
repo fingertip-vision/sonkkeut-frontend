@@ -84,20 +84,23 @@ internal fun AccessibilitySettings(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 56.dp)) { Text("‹  메인 화면으로") }
-        Text("접근성 설정", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
+        Text("환경 설정", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
         HorizontalDivider()
+        Text("화면 설정",style=MaterialTheme.typography.titleLarge,modifier=Modifier.semantics { heading() })
         SettingChoices("글자 크기", listOf("기본", "크게", "더 크게"), preferences.textSize, preferences::text)
         SettingChoices("화면 색상", listOf("어둡게", "밝게"), if (preferences.light) 1 else 0) { preferences.theme(it == 1) }
         SettingToggle("목표 버튼 크게 강조", preferences.lowVision, preferences::target)
+        Text("카메라 설정",style=MaterialTheme.typography.titleLarge,modifier=Modifier.semantics { heading() })
         SettingToggle("가까이서 화면 전체 담기", preferences.wideCamera, preferences::camera)
         Text("지원 기기는 넓은 후면 렌즈·최소 줌을 사용합니다. 미지원 또는 연결 실패 시 기본 렌즈로 전환합니다.")
+        Text("음성 설정",style=MaterialTheme.typography.titleLarge,modifier=Modifier.semantics { heading() })
         SettingToggle("음성 안내", preferences.voice, preferences::speech)
         SettingToggle("진동 안내", preferences.vibration, preferences::haptic)
         SettingChoices("안내 속도", listOf("느리게", "보통", "빠르게"), preferences.speed, preferences::rate)
         Text("휴대폰의 글자 크기 설정도 반영해요", style = MaterialTheme.typography.bodyLarge)
-        Text("자동 음성을 꺼도 ‘다시 듣기’는 사용할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
+        Text("자동 음성을 꺼도 ‘재안내’는 사용할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
         HorizontalDivider()
-        Text("카메라 화면은 전체 프레임을 표시합니다. 주문 입력·확인은 카메라와 함께 표시하며, 설정을 열면 안내가 멈춥니다. 메인으로 돌아온 뒤 안내 계속을 눌러 주세요.", style = MaterialTheme.typography.bodyLarge)
+        Text("카메라 화면은 전체 프레임을 표시합니다. 주문 입력·확인은 카메라와 함께 표시하며, 설정을 열면 안내가 멈춥니다. 안내 중 설정을 열었다면 메인으로 돌아올 때 새 화면을 확인해 자동으로 재개합니다. 앱을 다른 화면으로 전환했다면 카메라를 다시 시작해 주세요.", style = MaterialTheme.typography.bodyLarge)
     }
 }
 

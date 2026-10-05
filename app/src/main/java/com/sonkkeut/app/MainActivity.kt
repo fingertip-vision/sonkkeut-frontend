@@ -25,12 +25,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,25 +96,33 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             }
         }
     }
-    BackHandler(model.page!="home" || model.textOrderOpen || model.running || model.detailMode) { pendingMic=false; if(model.detailMode) model.closeDetailRead() else if(model.textOrderOpen) model.toggleTextOrder() else if(model.page!="home") model.open("home") else model.open("menu") }
-    fun go(page: String) { pendingMic=false; output.stop(); model.open(page) }
+    fun openSettings() { pendingMic=false; output.stop(); model.openEnvironmentSettings() }
+    fun closeSettings() { pendingMic=false; output.stop(); model.closeEnvironmentSettings(cameraGranted) }
+    BackHandler(model.page!="home" || model.textOrderOpen || model.running || model.detailMode) {
+        pendingMic=false
+        if(model.page=="accessibility") closeSettings()
+        else if(model.detailMode) model.closeDetailRead()
+        else if(model.textOrderOpen) model.toggleTextOrder()
+        else if(model.page!="home") model.open("home")
+        else openSettings()
+    }
+    val showOrderConfirmation=model.order!=null && !model.paused && !model.detailMode && !model.textOrderOpen && !model.recording && !model.speechBusy
+    val keyboard=LocalSoftwareKeyboardController.current
+    val focus=LocalFocusManager.current
+    LaunchedEffect(showOrderConfirmation) { if(showOrderConfirmation) { focus.clearFocus(); keyboard?.hide() } }
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
             "home" -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text("손끝길",style=MaterialTheme.typography.titleLarge,modifier=Modifier.weight(1f).semantics { heading() })
-                    TextButton(onClick={go("menu")},modifier=Modifier.heightIn(min=56.dp)) { Text("메뉴·설정") }
-                }
+                NativeHomeToolbar(model.running,{openSettings()},{pendingMic=false; output.stop(); model.end()})
 
                 if(model.running && !model.detailMode) {
-                    Text(model.visualGuidance(),style=MaterialTheme.typography.headlineSmall,modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite })
-                    if(model.order!=null && model.flowState!="S3") Text(model.progressText(),style=MaterialTheme.typography.bodyMedium)
+                    Text(if(model.order!=null && model.flowState!="S4" && model.message!=model.order!!.confirmation()) model.message else model.visualGuidance(),maxLines=if(LocalDensity.current.fontScale>1.6f) 1 else 2,overflow=TextOverflow.Ellipsis,style=if(LocalDensity.current.fontScale>1.6f) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite })
                 }
-                Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF080F1E))) {
+                Box(Modifier.fillMaxWidth().weight(if(showOrderConfirmation) { if(LocalDensity.current.fontScale>1.6f) .08f else .15f } else 1f).testTag("mainCamera").background(Color(0xFF080F1E))) {
                     if(cameraGranted && model.cameraActive) key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it; if(it.startsWith("카메라 오류")) { model.pause(); output.suspendOutput() }}) }
                     else Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text(if(!cameraGranted) "카메라 권한을 허용해 주세요." else model.message,color=Color.White)
-                        Button(onClick={if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA)},enabled=model.ready || !cameraGranted,modifier=Modifier.heightIn(min=56.dp)) { Text(if(cameraGranted) "손끝길 시작" else "카메라 권한 허용") }
+                        Button(onClick={if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA)},enabled=model.ready || !cameraGranted,modifier=Modifier.heightIn(min=56.dp)) { Text(if(!cameraGranted) "카메라 권한 허용" else if(model.running) "카메라 다시 시작" else "손끝길 시작") }
                         if(cameraStatus.startsWith("카메라 오류")) {
                             Text(cameraStatus,color=Color.White)
                             NativeButton("카메라 다시 연결") { retry++; cameraStatus=""; model.start() }
@@ -119,7 +130,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     }
                     if(cameraGranted && model.cameraActive) {
                         CameraOverlay(model.frame,Modifier.fillMaxSize(),preferences.lowVision && model.flowState in listOf("S4","S5"))
-                        Text(if(model.detailMode) "글자 가까이 비추기 · 손끝 안내 중지" else if(model.found) "화면 인식 중" else "키오스크 전체 화면을 비춰 주세요",color=Color.White,modifier=Modifier.align(Alignment.TopCenter).background(Color(0xDD080F1E)).padding(8.dp))
+                        if(!showOrderConfirmation) Text(if(model.detailMode) "글자 가까이 비추기 · 손끝 안내 중지" else if(model.found) "화면 인식 중" else "키오스크 전체 화면을 비춰 주세요",color=Color.White,modifier=Modifier.align(Alignment.TopCenter).background(Color(0xDD080F1E)).padding(8.dp))
                         if(cameraStatus.startsWith("카메라 오류")) TextButton(onClick={retry++},modifier=Modifier.align(Alignment.Center)) { Text("카메라 다시 연결") }
                     }
                 }
@@ -168,59 +179,17 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                         }
                     } else if(model.order==null) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
                 }
-                if(model.order!=null && !model.detailMode) {
-                    Column(Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite }) {
-                        Text("주문 확인",style=MaterialTheme.typography.titleMedium)
-                        Text(model.order!!.confirmation())
-                    }
+                if(showOrderConfirmation) {
+                    NativeOrderConfirmation(model.order!!,model.progressText(),Modifier.fillMaxWidth().weight(if(LocalDensity.current.fontScale>1.6f) .92f else .85f))
+                } else {
+                    Text(model.message,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
+                        modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite; contentDescription=model.message })
                 }
-                Text(model.message,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
-                    modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite; contentDescription=model.message })
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    NativeButton(if(!model.running) "손끝길 시작" else if(model.paused) "안내 계속" else "안내 중지",Modifier.weight(1f),model.flowState!="S6") { if(model.paused) { if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA) } else { model.pause(); output.suspendOutput() } }
-                    NativeButton("재안내",Modifier.weight(1f),output.lastText!=null) { output.resumeOutput(); output.repeat() }
-                }
+                NativeHomeActions(model.running,model.ready,output.lastText!=null,
+                    { if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA) },
+                    { output.resumeOutput(); output.repeat() })
             }
-            "menu" -> NativePage("메뉴·설정",{go("home")}) {
-                Text(model.connectionMessage,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
-                Text("사용 중인 메뉴 · ${model.storeName}")
-                NativeButton("주문 안내 종료",enabled=model.running) { output.stop(); model.end() }
-                NativeButton("화면 읽기·버튼 선택") { go("screen") }
-                NativeButton("가까이서 상세 글자 읽기",enabled=model.ready) { output.stop(); model.prepareDetailRead() }
-                NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
-                NativeButton("화면·카메라·음성 설정") { go("accessibility") }
-                NativeButton("서버·매장 설정") { go("connection") }
-                Text(model.speechStatus)
-                if(!model.modelInstalled) NativeButton("자체 음성 모델 받기 · 약 485MB",enabled=!model.speechBusy) { model.downloadSpeech() }
-                if(model.speechBusy) NativeButton("음성 작업 취소") { model.cancelSpeech(); output.resumeOutput() }
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    Text("익명 사용 통계 전송",modifier=Modifier.weight(1f))
-                    Switch(model.usageConsent,{model.changeUsageConsent(it)},modifier=Modifier.semantics { contentDescription="익명 사용 통계 전송" })
-                }
-                Text("동의한 경우 안내 결과만 전송합니다. 영상·음성·주문 문장은 전송하지 않습니다.",style=MaterialTheme.typography.bodyMedium)
-                Text("Kotlin 앱 ${BuildConfig.VERSION_NAME} · 휴대폰에서 OCR·손끝·음성 추론",style=MaterialTheme.typography.bodyMedium)
-                if(model.flowState=="SE") Text("직원분, 키오스크 주문을 도와주세요. ${model.message}")
-                Text("최근 안내 자막",style=MaterialTheme.typography.titleMedium)
-                model.captions.forEach { Text(it) }
-            }
-            "accessibility" -> AccessibilitySettings { go("menu") }
-            "connection" -> NativePage("서버·매장 설정",{go("menu")}) {
-                var base by rememberSaveable { mutableStateOf(model.server) }
-                var code by rememberSaveable { mutableStateOf(model.storeCode) }
-                Text("인터넷 연결 시 자동으로 메뉴를 연결합니다. 연결이 끊기면 저장된 매장 메뉴를 사용합니다.")
-                OutlinedTextField(base,{base=it},label={Text("서버 HTTPS 주소")},modifier=Modifier.fillMaxWidth(),singleLine=true,enabled=!model.running)
-                OutlinedTextField(code,{code=it},label={Text("매장 코드")},modifier=Modifier.fillMaxWidth(),singleLine=true,enabled=!model.running)
-                NativeButton("설정 저장·연결",enabled=!model.running) { model.saveConnection(base,code) }
-                Text(model.connectionMessage,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
-                model.menu.forEach { Text("${it.name} · ${it.price?.let { p -> "${p}원" } ?: "가격 미확인"}${if(it.soldOut) " · 품절" else ""}") }
-            }
-            "screen" -> NativePage("화면 읽기",{go("menu")}) {
-                NativeButton("읽은 내용 음성 안내",enabled=model.screen!=null) { output.resumeOutput(); output.read(model.screen?.reading() ?: "아직 화면을 읽지 못했습니다.") }
-                Text(if(model.found) "읽은 버튼을 선택하면 손끝으로 위치를 안내합니다." else "메인 화면에서 키오스크를 인식한 뒤 확인해 주세요.")
-                model.screen?.elements?.forEach { element ->
-                    NativeButton(if(element.readable) element.text.ifBlank { "글자 없음" } else "읽기 불확실",enabled=model.found && element.readable && element.kind in listOf("menu","button","tab","back")) { model.guide(element) }
-                }
-            }
+            "accessibility" -> AccessibilitySettings { closeSettings() }
 
         }
     }
@@ -228,19 +197,11 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
 
 @Composable
 internal fun NativeButton(label: String,modifier: Modifier=Modifier.fillMaxWidth(),enabled: Boolean=true,action: () -> Unit) {
-    Button(onClick=action,enabled=enabled,modifier=modifier.heightIn(min=64.dp),
+    Button(onClick=action,enabled=enabled,modifier=modifier.heightIn(min=64.dp),contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),
         colors=ButtonDefaults.buttonColors(disabledContainerColor=Color(0xFF33455F),disabledContentColor=Color(0xFFF5F8FF))) {
         Text(label,style=MaterialTheme.typography.titleMedium)
     }
 }
-@Composable
-private fun NativePage(title: String,back: () -> Unit,body: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        TextButton(onClick=back,modifier=Modifier.heightIn(min=56.dp)) { Text("‹ 뒤로") }
-        Text(title,style=MaterialTheme.typography.headlineMedium,modifier=Modifier.semantics { heading() }); body()
-    }
-}
-
 @Composable
 private fun CameraOverlay(frame: Map<String,Any?>,modifier: Modifier,showTarget: Boolean) {
     Canvas(modifier) {

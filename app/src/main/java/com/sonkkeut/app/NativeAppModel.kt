@@ -156,6 +156,17 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
             .filterValues { matches -> matches.map { it.second }.distinct().size==1 }.mapValues { it.value.first().second }
         commands.execute { SonkkeutEngine.setMenuAliases(aliases) }
     }
+    private var resumeAfterSettings=false
+    fun openEnvironmentSettings() {
+        resumeAfterSettings=running && !paused && flow.state!="S6" && !detailMode
+        open("accessibility")
+    }
+    fun closeEnvironmentSettings(cameraGranted: Boolean) {
+        val resume=resumeAfterSettings
+        resumeAfterSettings=false
+        open("home")
+        if(resume && cameraGranted && running && paused && flow.state!="S6") start()
+    }
     fun open(value: String) {
         if(value!="home") closeDetailRead()
         if(value=="order") { page="home"; toggleTextOrder(); return }
@@ -177,14 +188,14 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     }
     fun pause() { closeDetailRead(); cameraGeneration.incrementAndGet(); if(flow.state!="S6") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); speechRequested=false; commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
     fun end() {
-        reportSession(false); pause(); resetOrder(); running=false; page="home"; textOrderOpen=false; orderPrompted=false
+        resumeAfterSettings=false; reportSession(false); pause(); resetOrder(); running=false; page="home"; textOrderOpen=false; orderPrompted=false
         screen=null; frame=emptyMap(); found=false; rawSpeech=""; rag=null; flowState="S0"; recommendations=emptyList(); orderDraft=""
         pendingMenu?.let { applyMenu(it) }; pendingMenu=null
         announce("주문 안내를 종료했습니다. 손끝길 시작을 눌러 주세요.")
     }
     fun toggleTextOrder() { cancelSpeech(); speechRequested=false; orderPrompted=true; textOrderOpen=!textOrderOpen }
     fun consumeSpeechRequest() { speechRequested=false }
-    fun stopForBackground() { pause() }
+    fun stopForBackground() { resumeAfterSettings=false; pause() }
     fun prepareDetailRead() {
         if(!ready) { announce("AI 준비 후 상세 글자 읽기를 이용해 주세요."); return }
         pause(); open("home"); detailMode=true; detailLines=emptyList(); frame=emptyMap(); found=false
