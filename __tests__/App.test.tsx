@@ -6,7 +6,7 @@ import App from '../App';
 import type {GuidanceEvent, ScreenStructure, Verdict} from 'react-native-sonkkeut';
 import type {Connection, ServerConfig} from '../src/useBackendConnection';
 
-const mockNative = {say: jest.fn(), cancelListening: jest.fn(), silence: jest.fn(), cancelSpeechModelDownload: jest.fn(),
+const mockNative = {say: jest.fn(), announce: jest.fn(), configureFeedback: jest.fn(), cancelListening: jest.fn(), silence: jest.fn(), cancelSpeechModelDownload: jest.fn(),
   setMenuAliases: jest.fn(), clearTarget: jest.fn(), stop: jest.fn(), requestKeyframe: jest.fn(), setTarget: jest.fn(async () => true),
   getSpeechModelStatus: jest.fn(async () => ({ready: true, installed: true})), addModelDownloadListener: jest.fn(() => () => {})};
 let mockCallbacks: {onScreen: (screen: ScreenStructure) => void; onEvent: (event: GuidanceEvent) => void; onVerdict: (verdict: Verdict) => void};
@@ -141,4 +141,23 @@ test('an ultra-wide opening error falls back once, and a standard camera error s
   expect(mockActive).toBe(false); expect(text()).toContain('카메라 다시 열기');
   tap('카메라 다시 열기'); await settle();
   expect(root.root.findByType(Camera).props.device.id).toBe('camera'); expect(mockActive).toBe(true);
+});
+
+test('new UX preferences save together and control actual native feedback while explicit repeat remains available', async () => {
+  openSettings(); tap('글자 크기 · 더 크게'); tap('안내 속도 · 느리게');
+  for (const label of ['자동 음성 안내', '진동 안내']) {
+    const control = root.root.findAllByType(Switch).find(item => item.props.accessibilityLabel === label)!;
+    act(() => control.props.onValueChange(false));
+  }
+  await settle();
+  expect(mockNative.configureFeedback).toHaveBeenLastCalledWith(false, false, 0.75);
+  expect(JSON.parse((await AsyncStorage.getItem('settings'))!)).toMatchObject({textSize: 2, speechSpeed: 0, voiceEnabled: false, vibrationEnabled: false, server: 'https://saved.example.com'});
+  tap('메인 화면으로'); tap('손끝길 시작'); await settle();
+  expect(root.root.findAllByType(ScrollView)).toHaveLength(0);
+  tap('재안내'); expect(mockNative.say).toHaveBeenCalled();
+  act(() => root.unmount()); act(() => {root = renderer.create(<App/>);}); await settle();
+  expect(mockNative.configureFeedback).toHaveBeenLastCalledWith(false, false, 0.75);
+  openSettings();
+  const selected = root.root.findAllByType(Pressable).find(item => item.props.accessibilityLabel === '글자 크기 · 더 크게')!;
+  expect(selected.props.accessibilityState.checked).toBe(true);
 });

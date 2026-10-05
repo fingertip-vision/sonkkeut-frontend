@@ -1,4 +1,4 @@
-import {palettes} from '../src/theme';
+import {createTheme, palettes} from '../src/theme';
 
 function luminance(hex: string) {
   const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
@@ -16,4 +16,12 @@ test.each(['dark', 'light'] as const)('%s theme has at least 4.5:1 contrast for 
   }
   expect(ratio(c.line, c.surface)).toBeGreaterThanOrEqual(3);
   expect(ratio(c.line, c.background)).toBeGreaterThanOrEqual(3);
+});
+
+test('app text enlargement increases both font and line height while preserving contrast colors', () => {
+  const normal = createTheme('dark', 0), large = createTheme('dark', 2);
+  expect(large.styles.body.fontSize).toBeCloseTo(normal.styles.body.fontSize * 1.3);
+  expect(large.styles.body.lineHeight).toBeCloseTo(normal.styles.body.lineHeight * 1.3);
+  expect(large.styles.body.fontWeight).toBe('800');
+  expect(large.colors).toEqual(normal.colors);
 });

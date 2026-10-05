@@ -4,6 +4,14 @@
 
 AWS 서버는 팀의 기존 GitHub Actions → ECR → EC2 SSM 경로로 배포합니다. Cloudflare quick tunnel을 통해 HTTPS로 공개하므로 터널 컨테이너 재시작 시 주소가 바뀔 수 있습니다. 새 주소는 백엔드 Actions 배포 요약에서 확인하고 앱의 서버 설정에서 변경할 수 있습니다. 고정 주소 운영에는 별도의 도메인·고정 터널 설정이 필요합니다.
 
+## 새 UX 커밋 반영 (v0.1.7)
+
+팀의 `feature/ux-ui` 커밋 `ed78c49`와 `develop` 개발 이력을 병합했습니다. 새 글자 크기·자동 음성·진동·안내 속도 설정을 AI·AWS 연결 앱에도 적용했습니다. 설정은 다음 실행에 복원되며, 자동 음성을 꺼도 재안내·화면 읽기는 사용할 수 있습니다. TalkBack 사용 중 자동 TTS는 억제합니다. 기존 남색·노란색 메인, 스크롤 없는 카메라와 실제 OCR·Whisper·주문 확인·AWS 자동 연결은 유지합니다.
+
+[화면 구성·실제 캡처·개발 진입점](docs/app-screens.md)과 [Compose 원본 개발 기록](docs/compose-prototype.md)을 확인하세요. 현재 공개 APK는 `App.tsx`·`android/` 경로이며, 루트 `app/`의 Compose 프로토타입은 별도 패키지입니다.
+
+검증: Jest 54개·TypeScript·ESLint, Android 10개 통과(음성 모델 미설치로 Whisper 검사 1개 생략), release APK의 설정 복원·큰 글자·테마·재안내·카메라 중지/계속. S26 Ultra 실물, 한국어 음성·진동 감각과 TalkBack 사용성은 미검증입니다.
+
 ## 고대비·스크롤 없는 메인 화면 (v0.1.6)
 
 기본 테마를 짙은 남색 배경·밝은 글자·노란색 버튼으로 바꿨습니다. **메뉴·설정 → 화면·카메라·음성 설정**에서 밝은 테마를 선택할 수 있으며 테마·카메라 화각·목표 강조 설정은 저장됩니다. 앱의 고정 글자 색상과 배경 조합은 두 테마 모두 명도 대비 4.5:1 이상입니다. 영상 자체와 목표 테두리 대비는 장면에 따라 달라집니다.
@@ -34,7 +42,7 @@ Jest 41개·TypeScript·ESLint, 최종 release APK의 자동 온라인 시작·�
 
 ## 지금 확인하기
 
-휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.6-accessibility-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.6-accessibility-20261005/accessibility-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.7-ux-sync-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.7-ux-sync-20261005/ux-sync-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
 
 휴대폰 없이 [상세 시뮬레이션](https://amazing-manually-transcript-est.trycloudflare.com/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 

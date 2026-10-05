@@ -53,7 +53,11 @@ export default function App() {
   statsEnabledRef.current = statsEnabled;
   const [lowVision, setLowVision] = useState(true);
   const [themeName, setThemeName] = useState<ThemeName>('dark');
-  const theme = useMemo(() => createTheme(themeName), [themeName]);
+  const [textSize, setTextSize] = useState<0 | 1 | 2>(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [speechSpeed, setSpeechSpeed] = useState<0 | 1 | 2>(1);
+  const theme = useMemo(() => createTheme(themeName, textSize), [themeName, textSize]);
   const {colors, styles} = theme;
   const [wideCamera, setWideCamera] = useState(true);
   const [wideFailed, setWideFailed] = useState(false);
@@ -81,6 +85,7 @@ export default function App() {
   const screenSeen = useRef(false);
   const stepScreen = useRef('unknown');
   const orderPrompted = useRef(false);
+  const welcomed = useRef(false);
   const standardCamera = useCameraDevice('back');
   const widerCamera = useCameraDevice('back', {physicalDevices: ['ultra-wide-angle-camera']});
   const {device, zoom, ultraWide} = cameraView(standardCamera, widerCamera, wideCamera && !wideFailed);
@@ -109,7 +114,7 @@ export default function App() {
         }
       }
       if (flow.state === 'S3' && !flow.confirmed && !orderPrompted.current) {
-        orderPrompted.current = true; openPage('order'); Sonkkeut.say('화면을 찾았습니다. 주문 입력 화면에서 주문을 알려 주세요.');
+        orderPrompted.current = true; openPage('order'); Sonkkeut.announce('화면을 찾았습니다. 주문 입력 화면에서 주문을 알려 주세요.');
       }
       refresh();
     },
@@ -135,8 +140,13 @@ export default function App() {
     },
   });
   useEffect(() => {
-    if (ai.ready) {Sonkkeut.say('손끝길을 시작합니다. 시작 버튼을 누르고 휴대폰을 화면 쪽으로 들어 주세요.');}
-  }, [ai.ready]);
+    if (ai.ready && serverConfig) {Sonkkeut.configureFeedback(voiceEnabled, vibrationEnabled, [0.75, 1, 1.25][speechSpeed]);}
+  }, [ai.ready, serverConfig, voiceEnabled, vibrationEnabled, speechSpeed]);
+  useEffect(() => {
+    if (ai.ready && serverConfig && !welcomed.current) {
+      welcomed.current = true; Sonkkeut.announce('손끝길을 시작합니다. 시작 버튼을 누르고 휴대폰을 화면 쪽으로 들어 주세요.');
+    }
+  }, [ai.ready, serverConfig]);
 
   useEffect(() => {
     const lifecycleGeneration = generation;
@@ -180,6 +190,7 @@ export default function App() {
       savedSettings.current = saved;
       setServer(saved.server); setCode(saved.code); setStatsEnabled(saved.statsEnabled);
       setThemeName(saved.theme); setWideCamera(saved.wideCamera); setLowVision(saved.lowVision);
+      setTextSize(saved.textSize); setVoiceEnabled(saved.voiceEnabled); setVibrationEnabled(saved.vibrationEnabled); setSpeechSpeed(saved.speechSpeed);
       setServerConfig({server: saved.server, code: saved.code});
       statsEnabledRef.current = saved.statsEnabled === true;
     }).catch(() => {if (mounted) {setServerConfig({server: BACKEND_URL, code: DEFAULT_STORE_CODE});}});
@@ -212,7 +223,7 @@ export default function App() {
     if (flow.message !== announced.current) {
       announced.current = flow.message;
       caption(flow.message);
-      if (flow.state !== 'S5') {Sonkkeut.say(flow.message);}
+      if (flow.state !== 'S5') {Sonkkeut.announce(flow.message);}
     }
     const action = flow.action;
     if (flow.state === 'S4' && action && action !== applied.current) {
@@ -253,7 +264,7 @@ export default function App() {
     const camera = await Camera.requestCameraPermission();
     await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
     if (camera !== 'granted') {
-      flow.enter('SE', '카메라 권한이 필요합니다. 설정에서 권한을 허용해 주세요.'); Sonkkeut.say(flow.message); refresh(); return;
+      flow.enter('SE', '카메라 권한이 필요합니다. 설정에서 권한을 허용해 주세요.'); Sonkkeut.announce(flow.message); refresh(); return;
     }
     if (!ai.ready) {flow.enter('SE', ai.error || '모델을 준비하고 있습니다. 잠시 후 다시 시작해 주세요.'); refresh(); return;}
     setPermission(true); setRunning(true); setPage('home'); setSettings(false); setPaused(false); setCameraError(false); setReaderScreen(undefined); setGuidance(undefined); setVerification(undefined); setCaptions([]); flow.paused = false;
@@ -270,7 +281,7 @@ export default function App() {
       setGuidance(undefined); setVerification(undefined);
       flow.submit(parseOrder(text, menu)); setOrder(text); refresh();
     } catch (e) {flow.intent = undefined; flow.confirmed = false; flow.remaining = []; flow.enter('S3', (e as Error).message); refresh();}
-    Sonkkeut.say(flow.message);
+    Sonkkeut.announce(flow.message);
   }
   async function listen(provider: 'custom' | 'system' = 'custom') {
     const token = ++generation.current;
@@ -451,6 +462,11 @@ export default function App() {
       {page === 'settings' && <>
         <Text accessibilityRole="header" style={styles.sectionTitle}>내게 맞는 설정</Text>
         <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>글자 크기</Text>
+          {(['기본', '크게', '더 크게'] as const).map((label, index) => <Pressable key={label} accessibilityRole="radio" accessibilityLabel={`글자 크기 · ${label}`} accessibilityState={{checked: textSize === index}} style={[styles.choice, textSize === index && styles.choiceSelected]} onPress={() => {const value = index as 0 | 1 | 2; setTextSize(value); savePreference({textSize: value});}}><Text style={[styles.choiceText, textSize === index && styles.choiceSelectedText]}>{textSize === index ? '● ' : '○ '}{label}</Text></Pressable>)}
+          <Text style={styles.small}>휴대폰의 글자 크기도 반영합니다. ‘더 크게’는 글자를 굵게 표시합니다.</Text>
+        </View>
+        <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>화면 테마</Text>
           {(['dark', 'light'] as const).map(name => <Pressable key={name} accessibilityRole="radio" accessibilityLabel={name === 'dark' ? '어두운 테마' : '밝은 테마'} accessibilityState={{checked: themeName === name}} style={[styles.choice, themeName === name && styles.choiceSelected]} onPress={() => {setThemeName(name); savePreference({theme: name});}}><Text style={[styles.choiceText, themeName === name && styles.choiceSelectedText]}>{themeName === name ? '● ' : '○ '}{name === 'dark' ? '어두운 테마 · 기본' : '밝은 테마'}</Text></Pressable>)}
           <Text style={styles.small}>기본은 남색 배경과 노란색 버튼입니다. 선택한 테마는 다음 실행에도 유지됩니다.</Text>
@@ -461,6 +477,14 @@ export default function App() {
           <View style={styles.row}><Text style={[styles.body, styles.flex]}>가까이서 화면 전체 담기</Text><Switch accessibilityLabel="넓은 카메라 화각 사용" value={wideCamera} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {setWideCamera(value); setWideFailed(false); savePreference({wideCamera: value});}}/></View>
           <Text style={styles.small}>{ultraWide ? '초광각 렌즈를 사용합니다.' : wideFailed ? '초광각을 열지 못해 기본 렌즈로 전환했습니다.' : '지원 기기는 초광각을 사용하고, 그 외에는 기본 렌즈를 사용합니다.'} 영상 가장자리를 자르지 않고 세로 영역에 전체를 표시합니다.</Text>
           <Text style={styles.small}>화면 네 모서리가 모두 보이도록 휴대폰을 가슴 높이에 들고 각도와 거리를 조절해 주세요. 큰 키오스크는 조금 더 떨어져야 할 수 있습니다.</Text>
+        </View>
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>음성·진동 안내</Text>
+          <View style={styles.row}><Text style={[styles.body, styles.flex]}>자동 음성 안내</Text><Switch accessibilityLabel="자동 음성 안내" value={voiceEnabled} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {setVoiceEnabled(value); savePreference({voiceEnabled: value});}}/></View>
+          <View style={styles.row}><Text style={[styles.body, styles.flex]}>진동 안내</Text><Switch accessibilityLabel="진동 안내" value={vibrationEnabled} trackColor={{false: colors.line, true: colors.accent}} thumbColor={colors.ink} onValueChange={value => {setVibrationEnabled(value); savePreference({vibrationEnabled: value});}}/></View>
+          <Text style={styles.small}>자동 음성을 꺼도 ‘재안내’와 화면 글자 읽기는 사용할 수 있습니다. TalkBack 사용 중에는 자동 음성이 겹치지 않도록 합니다.</Text>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>안내 속도</Text>
+          {(['느리게', '보통', '빠르게'] as const).map((label, index) => <Pressable key={label} accessibilityRole="radio" accessibilityLabel={`안내 속도 · ${label}`} accessibilityState={{checked: speechSpeed === index}} style={[styles.choice, speechSpeed === index && styles.choiceSelected]} onPress={() => {const value = index as 0 | 1 | 2; setSpeechSpeed(value); savePreference({speechSpeed: value});}}><Text style={[styles.choiceText, speechSpeed === index && styles.choiceSelectedText]}>{speechSpeed === index ? '● ' : '○ '}{label}</Text></Pressable>)}
         </View>
         <View style={styles.card}>
           <Button title={speechSettings ? '음성 모델 설정 접기' : `음성 모델 ${speechModel?.ready ? '준비 완료' : '준비하기'}`} secondary onPress={() => setSpeechSettings(!speechSettings)}/>

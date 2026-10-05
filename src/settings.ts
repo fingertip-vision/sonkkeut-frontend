@@ -12,5 +12,8 @@ export function restoreSettings(value: unknown) {
   }
   return {server, code, statsEnabled: saved.statsEnabled === true,
     theme: saved.theme === 'light' ? 'light' as const : 'dark' as const,
-    wideCamera: saved.wideCamera !== false, lowVision: saved.lowVision !== false};
+    wideCamera: saved.wideCamera !== false, lowVision: saved.lowVision !== false,
+    textSize: (saved.textSize === 1 || saved.textSize === 2 ? saved.textSize : 0) as 0 | 1 | 2,
+    voiceEnabled: saved.voiceEnabled !== false, vibrationEnabled: saved.vibrationEnabled !== false,
+    speechSpeed: (saved.speechSpeed === 0 || saved.speechSpeed === 2 ? saved.speechSpeed : 1) as 0 | 1 | 2};
 }
