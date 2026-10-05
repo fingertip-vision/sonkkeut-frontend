@@ -11,7 +11,7 @@ const mockNative = {say: jest.fn(), announce: jest.fn(), configureFeedback: jest
   correctMenuSpeech: jest.fn(async (utterance: string, _scope: string, documents: {name: string; aliases: string[]; sold_out: boolean}[]) => new (require('react-native-sonkkeut/src/menuRag').MenuRagIndex)(documents).correct(utterance)),
   setMenuAliases: jest.fn(), clearTarget: jest.fn(), stop: jest.fn(), requestKeyframe: jest.fn(), setTarget: jest.fn(async () => true),
   getSpeechModelStatus: jest.fn(async () => ({ready: true, installed: true})), addModelDownloadListener: jest.fn(() => () => {})};
-let mockCallbacks: {onScreen: (screen: ScreenStructure) => void; onEvent: (event: GuidanceEvent) => void; onVerdict: (verdict: Verdict) => void};
+let mockCallbacks: {onScreen: (screen: ScreenStructure) => void; onResult: (result: {found: boolean}) => void; onEvent: (event: GuidanceEvent) => void; onVerdict: (verdict: Verdict) => void};
 const mockAi = {ready: true, result: {found: true, hint: undefined as string | undefined}, frameProcessor: undefined};
 let mockActive: boolean;
 let mockWideAvailable = false;
@@ -45,7 +45,7 @@ beforeEach(async () => {
 test('speech goes through scoped retrieval and shows raw/corrected text before confirmation', async () => {
   mockNative.listen.mockResolvedValue('아메리 카너 한 찬 포장해 주세요');
   tap('손끝길 시작'); await settle();
-  openMenu(); tap('주문 입력 열기'); tap('자체 모델로 말로 주문하기'); await settle();
+  act(() => mockCallbacks.onScreen(menuScreen)); await settle();
   expect(mockNative.correctMenuSpeech).toHaveBeenCalledWith('아메리 카너 한 찬 포장해 주세요', expect.stringContaining('saved.example.com'), oldMenu.items);
   expect(text()).toContain('들은 문장'); expect(text()).toContain('아메리 카너');
   expect(text()).toContain('메뉴와 표현 보정'); expect(text()).toContain('아메리카노');
@@ -60,7 +60,7 @@ test('an ambiguous menu requires explicit candidate selection before order confi
   act(() => root.update(<App/>)); await settle();
   mockNative.listen.mockResolvedValue('라떼 한 잔');
   tap('손끝길 시작'); await settle();
-  openMenu(); tap('주문 입력 열기'); tap('기기 음성 인식으로 주문하기'); await settle();
+  act(() => mockCallbacks.onScreen(menuScreen)); await settle();
   expect(text()).toContain('어떤 메뉴인가요'); expect(text()).not.toContain('네, 이 주문으로 안내 시작');
   tap('카페라떼 선택'); await settle();
   expect(text()).toContain('네, 이 주문으로 안내 시작'); expect(mockNative.setTarget).not.toHaveBeenCalled();
@@ -70,16 +70,70 @@ test('recording completion keeps inference pending, while navigating away reject
   let resolveSpeech: (value: string) => void = () => {};
   mockNative.listen.mockImplementation(() => new Promise(resolve => {resolveSpeech = resolve;}));
   tap('손끝길 시작'); await settle();
-  openMenu(); tap('주문 입력 열기'); tap('자체 모델로 말로 주문하기');
+  act(() => mockCallbacks.onScreen(menuScreen));
   tap('말하기 완료'); expect(mockNative.finishListening).toHaveBeenCalledTimes(1);
-  tap('메인 화면으로'); await act(async () => resolveSpeech('아메리카노 두 잔'));
+  openMenu(); await act(async () => resolveSpeech('아메리카노 두 잔'));
   await settle(); expect(mockNative.correctMenuSpeech).not.toHaveBeenCalled(); expect(text()).not.toContain('네, 이 주문으로 안내 시작');
 });
+
+test('screen detection starts speech once while the same camera stays active', async () => {
+  mockNative.listen.mockImplementation(() => new Promise(() => {}));
+  tap('손끝길 시작'); await settle();
+  const Camera = require('react-native-vision-camera').Camera;
+  const camera = root.root.findByType(Camera);
+  act(() => mockCallbacks.onScreen(menuScreen)); await settle();
+  expect(mockNative.listen).toHaveBeenCalledWith('custom');
+  expect(mockNative.configureFeedback).toHaveBeenLastCalledWith(false, true, 1);
+  expect(mockActive).toBe(true); expect(root.root.findByType(Camera)).toBe(camera);
+  expect(camera.props.isActive).toBe(true); expect(text()).not.toContain('주문 확인');
+  act(() => mockCallbacks.onScreen({...menuScreen, keyframe_id: 2})); await settle();
+  expect(mockNative.listen).toHaveBeenCalledTimes(1);
+  expect(mockNative.stop).not.toHaveBeenCalled();
+  tap('음성 입력 취소');
+  expect(mockNative.configureFeedback).toHaveBeenLastCalledWith(true, true, 1);
+});
+
+test('switching to text ordering rejects late speech and keeps the camera active', async () => {
+  let resolveSpeech: (value: string) => void = () => {};
+  mockNative.listen.mockImplementation(() => new Promise(resolve => {resolveSpeech = resolve;}));
+  tap('손끝길 시작'); await settle();
+  act(() => mockCallbacks.onScreen(menuScreen));
+  enterOrder();
+  await act(async () => resolveSpeech('아메리카노 두 잔')); await settle();
+  expect(mockNative.correctMenuSpeech).not.toHaveBeenCalled(); expect(mockActive).toBe(true);
+  expect(text()).toContain('4,500'); expect(text()).not.toContain('9,000');
+  tap('네, 이 주문으로 안내 시작'); await settle();
+  expect(mockNative.setTarget).not.toHaveBeenCalled();
+  act(() => mockCallbacks.onScreen({...menuScreen, keyframe_id: 2})); await settle();
+  expect(mockNative.setTarget).toHaveBeenCalledWith('coffee', expect.anything());
+});
+
+test('losing the screen during dictation does not strand the pending speech result', async () => {
+  let resolveSpeech: (value: string) => void = () => {};
+  mockNative.listen.mockImplementation(() => new Promise(resolve => {resolveSpeech = resolve;}));
+  tap('손끝길 시작'); await settle();
+  act(() => {mockCallbacks.onResult({found: true}); mockCallbacks.onScreen(menuScreen);});
+  act(() => mockCallbacks.onResult({found: false}));
+  await act(async () => resolveSpeech('아메리카노 한 잔 포장')); await settle();
+  expect(text()).toContain('네, 이 주문으로 안내 시작'); expect(mockActive).toBe(true);
+});
+
+test('pausing dictation ignores its late result and allows retry on the camera', async () => {
+  let resolveSpeech: (value: string) => void = () => {};
+  mockNative.listen.mockImplementationOnce(() => new Promise(resolve => {resolveSpeech = resolve;}));
+  tap('손끝길 시작'); await settle();
+  act(() => mockCallbacks.onScreen(menuScreen)); tap('안내 중지');
+  await act(async () => resolveSpeech('아메리카노 두 잔')); await settle();
+  expect(mockNative.correctMenuSpeech).not.toHaveBeenCalled(); expect(mockActive).toBe(false);
+  tap('안내 계속'); tap('기기 음성 인식으로 주문하기'); await settle();
+  expect(mockNative.listen).toHaveBeenLastCalledWith('system'); expect(mockActive).toBe(true);
+  expect(text()).toContain('네, 이 주문으로 안내 시작');
+});
 afterEach(() => {act(() => root.unmount()); jest.restoreAllMocks();});
-function openMenu() {tap('메뉴·설정 열기');}
+function openMenu() {tap('설정 열기');}
 function openSettings() {openMenu(); tap('화면·카메라·음성 설정');}
 function enterOrder() {
-  openMenu(); tap('주문 입력 열기');
+  tap('텍스트로 주문하기');
   const input = root.root.findAllByType(TextInput).find(item => item.props.accessibilityLabel === '주문 문장')!;
   act(() => input.props.onChangeText('아메리카노 한 잔 포장'));
   tap('입력한 주문 확인');
@@ -107,16 +161,15 @@ test('reconnecting during an order preserves the original menu until the user en
   mockConnection = {...mockConnection, menu: newMenu}; act(() => root.update(<App/>)); await settle();
   openMenu();
   expect(text()).toContain('새 매장 메뉴는 안내 종료 후 적용됩니다');
-  tap('주문 입력 열기');
+  tap('메인 화면으로'); tap('안내 계속'); tap('텍스트로 주문하기');
   const input = root.root.findAllByType(TextInput).find(item => item.props.accessibilityLabel === '주문 문장')!;
   act(() => input.props.onChangeText('아메리카노 한 잔 포장'));
   tap('입력한 주문 확인'); expect(text()).toContain('주문이 맞나요?'); expect(text()).toContain('4,500');
-  tap('메인 화면으로'); openMenu(); tap('주문 안내 종료'); await settle(); openMenu(); expect(text()).toContain('새 메뉴'); expect(text()).toContain('새 매장');
+  openMenu(); tap('주문 안내 종료'); await settle(); openMenu(); expect(text()).toContain('새 메뉴'); expect(text()).toContain('새 매장');
 });
 test('native guidance, pause and verdicts update visual text and reader content', async () => {
   tap('손끝길 시작'); await settle(); act(() => mockCallbacks.onScreen(menuScreen));
-  const input = root.root.findAllByType(TextInput).find(item => item.props.accessibilityLabel === '주문 문장')!;
-  act(() => input.props.onChangeText('아메리카노 한 잔 포장')); tap('입력한 주문 확인'); tap('네, 이 주문으로 안내 시작'); await settle();
+  enterOrder(); tap('네, 이 주문으로 안내 시작'); await settle();
   expect(root.root.findAllByType(ScrollView)).toHaveLength(0);
   expect(mockNative.setTarget).not.toHaveBeenCalled();
   act(() => mockCallbacks.onScreen({...menuScreen, keyframe_id: 2})); await settle();
@@ -158,12 +211,12 @@ test('rapid theme and camera preference changes preserve custom server settings 
   expect(choice.props.accessibilityState.checked).toBe(true);
 });
 
-test('active main camera uses the entire frame and contains only menu, stop and repeat controls', async () => {
+test('active main camera uses the entire frame and keeps text ordering between camera and guidance controls', async () => {
   tap('손끝길 시작'); await settle();
   const Camera = require('react-native-vision-camera').Camera;
   expect(root.root.findByType(Camera).props.resizeMode).toBe('contain');
   expect(root.root.findAllByType(ScrollView)).toHaveLength(0);
-  expect(root.root.findAllByType(Pressable).map(button => button.props.accessibilityLabel)).toEqual(['메뉴·설정 열기', '안내 중지', '재안내']);
+  expect(root.root.findAllByType(Pressable).map(button => button.props.accessibilityLabel)).toEqual(['설정 열기', '텍스트로 주문하기', '안내 중지', '재안내']);
 });
 
 test('an ultra-wide opening error falls back once, and a standard camera error stops guidance for retry', async () => {
