@@ -26,6 +26,7 @@ class GuidanceOutput(context: Context) {
     private var initializationFinished = false
     private var suspended = false
     private var currentId: String? = null
+    private var completion: (() -> Unit)? = null
     private var sequence = 0
     private var voiceEnabled = true
     private var vibrationEnabled = true
@@ -66,7 +67,7 @@ class GuidanceOutput(context: Context) {
                             engine.setAudioAttributes(attributes)
                             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                 override fun onStart(id: String?) { main.post { if (currentId == id && !closed) outputStatus = "음성 안내 재생 중" } }
-                                override fun onDone(id: String?) { main.post { if (currentId == id && !closed) { currentId = null; audio.abandonAudioFocusRequest(focus); outputStatus = "음성 안내 재생 완료" } } }
+                                override fun onDone(id: String?) { main.post { if (currentId == id && !closed) { currentId = null; audio.abandonAudioFocusRequest(focus); outputStatus = "음성 안내 재생 완료"; val done=completion; completion=null; done?.invoke() } } }
                                 @Deprecated("Android callback") override fun onError(id: String?) { main.post { if (currentId == id && !closed) { stop(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요." } } }
                             })
                             ready = true
@@ -89,6 +90,13 @@ class GuidanceOutput(context: Context) {
         }
         speak(text)
     }
+    fun readOrder(text: String, done: () -> Unit) {
+        if(closed || suspended) return
+        stopDevices(); lastText=text
+        completion=done
+        speak(text)
+        if(currentId==null) { completion=null; done() }
+    }
     fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it, explicit = true) } }
     fun read(text: String) {
         if (closed || suspended) return
@@ -110,8 +118,8 @@ class GuidanceOutput(context: Context) {
             stopDevices(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요."
         }
     }
-    private fun stopDevices() { currentId = null; tts?.stop(); vibrator?.cancel(); audio.abandonAudioFocusRequest(focus) }
-    fun stop() { stopDevices(); gate.clearDeduplication(); outputStatus = "음성과 진동을 멈췄습니다." }
+    private fun stopDevices() { completion=null; currentId = null; tts?.stop(); vibrator?.cancel(); audio.abandonAudioFocusRequest(focus) }
+    fun stop() { val done=completion; stopDevices(); gate.clearDeduplication(); outputStatus = "음성과 진동을 멈췄습니다."; done?.invoke() }
     fun suspendOutput() { suspended = true; stop() }
     fun resumeOutput() { suspended = false; gate.clearDeduplication() }
     fun resetAttempt() { stop(); gate.resetAttempt() }

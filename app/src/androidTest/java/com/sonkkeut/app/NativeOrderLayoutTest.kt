@@ -3,6 +3,8 @@ package com.sonkkeut.app
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import android.graphics.Bitmap
@@ -28,6 +30,27 @@ class NativeOrderLayoutTest {
     @Test fun smallPortraitShowsWholeOrderWithoutScrolling()=checkLayout(1f)
     @Test fun largeFontLongOrderCanBeReadInPagesWithoutClipping()=checkLayout(2.6f)
 
+    @Test fun shortOrderHasNoNavigationAndKeepsCameraHeight() {
+        val order=NativeOrder(listOf(NativeOrderItem("아메리카노",1,3000,"hot","")),"포장")
+        var visible by androidx.compose.runtime.mutableStateOf(true)
+        compose.setContent {
+            MaterialTheme {
+                Box(Modifier.width(360.dp).height(640.dp).testTag("camera")) {
+                    if(visible) NativeOrderConfirmation(order,"담기 확인 0 / 1개",Modifier.fillMaxWidth().heightIn(max=320.dp),{visible=false})
+                }
+            }
+        }
+        compose.onNodeWithTag("orderNavigation").assertDoesNotExist()
+        val before=compose.onNodeWithTag("camera").fetchSemanticsNode().boundsInRoot
+        val panel=compose.onNodeWithTag("orderConfirmation").fetchSemanticsNode().boundsInRoot
+        assertTrue(panel.height<=before.height*.5f)
+        compose.onNodeWithText("닫기").performClick()
+        compose.onNodeWithTag("orderConfirmation").assertDoesNotExist()
+        assertEquals(before,compose.onNodeWithTag("camera").fetchSemanticsNode().boundsInRoot)
+        compose.runOnIdle { visible=true }
+        compose.onNodeWithText("주문 확인").assertIsDisplayed()
+    }
+
     private fun checkLayout(fontScale: Float) {
         val order=NativeOrder((1..12).map { NativeOrderItem("따뜻한 카페라떼 메뉴 $it",2,4500,"hot","라지") },"포장")
         compose.setContent {
@@ -38,9 +61,9 @@ class NativeOrderLayoutTest {
                 MaterialTheme {
                     Column(Modifier.width(360.dp).height(640.dp).testTag("viewport").safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         NativeHomeToolbar(true,{},{})
-                        Text("키오스크 화면을 비춰 주세요",style=if(fontScale>1.6f) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,maxLines=if(fontScale>1.6f) 1 else 2)
-                        Box(Modifier.fillMaxWidth().weight(if(fontScale>1.6f) .08f else .15f).testTag("camera"))
-                        NativeOrderConfirmation(order,"담기 확인 0 / 24개",Modifier.fillMaxWidth().weight(if(fontScale>1.6f) .92f else .85f))
+                        Box(Modifier.fillMaxWidth().weight(1f).testTag("camera")) {
+                            NativeOrderConfirmation(order,"담기 확인 0 / 24개",Modifier.fillMaxWidth().heightIn(max=240.dp))
+                        }
                         NativeHomeActions(true,true,true,{},{})
                     }
                 }
@@ -53,7 +76,7 @@ class NativeOrderLayoutTest {
         compose.onNodeWithText("주문 확인").assertIsDisplayed()
         val camera=compose.onNodeWithTag("camera").fetchSemanticsNode().boundsInRoot
         val panel=compose.onNodeWithTag("orderConfirmation").fetchSemanticsNode().boundsInRoot
-        assertTrue(camera.height>0); assertTrue(camera.height<panel.height)
+        assertTrue(camera.height>0); assertTrue(camera.height>=panel.height)
         compose.onNodeWithText("음성 재인식").assertIsDisplayed().assertIsNotEnabled()
         compose.onNodeWithText("설정").assertIsDisplayed()
         compose.onNodeWithText("종료").assertIsDisplayed()

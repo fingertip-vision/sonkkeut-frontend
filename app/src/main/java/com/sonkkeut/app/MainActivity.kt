@@ -64,6 +64,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     var cameraGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) }
     var pendingMic by remember { mutableStateOf(false) }
     var cameraStatus by remember { mutableStateOf("") }
+    var modelInfoOpen by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it && !model.detailMode) model.start() }
     val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="home" && model.running && !model.paused) { model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false }
@@ -81,7 +82,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
         if(outputSession[1]==model.announcementNumber) return@LaunchedEffect
         outputSession[1]=model.announcementNumber
         if(!model.recording && !model.speechBusy) output.resumeOutput()
-        if(model.announcement.isNotBlank()) output.announce("native:${model.announcementNumber}",model.announcement,press=model.pressAnnouncement,
+        if(model.announcement.isNotBlank() && !model.awaitingOrderPresentation) output.announce("native:${model.announcementNumber}",model.announcement,press=model.pressAnnouncement,
             vibration=if(model.pressAnnouncement) longArrayOf(0,70,60,70) else if(model.vibeHz>0) longArrayOf(0,25,(1000/model.vibeHz).toLong().coerceAtLeast(60),25) else null)
     }
     LaunchedEffect(model.speechRequested,model.speechBusy) {
@@ -101,24 +102,30 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     BackHandler(model.page!="home" || model.textOrderOpen || model.running || model.detailMode) {
         pendingMic=false
         if(model.page=="accessibility") closeSettings()
+        else if(model.orderConfirmationOpen) model.closeOrderConfirmation()
         else if(model.detailMode) model.closeDetailRead()
         else if(model.textOrderOpen) model.toggleTextOrder()
         else if(model.page!="home") model.open("home")
         else openSettings()
     }
-    val showOrderConfirmation=model.order!=null && !model.paused && !model.detailMode && !model.textOrderOpen && !model.recording && !model.speechBusy
+    val showOrderConfirmation=model.orderConfirmationOpen && model.order!=null && !model.paused && !model.detailMode && !model.textOrderOpen && !model.recording && !model.speechBusy
     val keyboard=LocalSoftwareKeyboardController.current
     val focus=LocalFocusManager.current
-    LaunchedEffect(showOrderConfirmation) { if(showOrderConfirmation) { focus.clearFocus(); keyboard?.hide() } }
+    LaunchedEffect(showOrderConfirmation,model.orderPresentationId) { if(showOrderConfirmation) { focus.clearFocus(); keyboard?.hide(); withFrameNanos { }
+        if(model.awaitingOrderPresentation) {
+            val presented=model.order
+            output.resumeOutput()
+            output.readOrder(presented!!.confirmation()) { if(model.order===presented) model.orderConfirmationPresented() }
+        } } }
+    if(modelInfoOpen) AlertDialog(onDismissRequest={modelInfoOpen=false},title={Text("자체 음성 모델")},text={Text(model.speechStatus)},confirmButton={
+        TextButton(onClick={model.downloadSpeech()},enabled=!model.modelInstalled && !model.speechBusy) { Text("모델 받기 · 약 485MB") }
+    },dismissButton={TextButton(onClick={modelInfoOpen=false}) { Text("닫기") }})
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
             "home" -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 NativeHomeToolbar(model.running,{openSettings()},{pendingMic=false; output.stop(); model.end()})
 
-                if(model.running && !model.detailMode) {
-                    Text(if(model.order!=null && model.flowState!="S4" && model.message!=model.order!!.confirmation()) model.message else model.visualGuidance(),maxLines=if(LocalDensity.current.fontScale>1.6f) 1 else 2,overflow=TextOverflow.Ellipsis,style=if(LocalDensity.current.fontScale>1.6f) MaterialTheme.typography.titleMedium else MaterialTheme.typography.headlineSmall,modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite })
-                }
-                Box(Modifier.fillMaxWidth().weight(if(showOrderConfirmation) { if(LocalDensity.current.fontScale>1.6f) .08f else .15f } else 1f).testTag("mainCamera").background(Color(0xFF080F1E))) {
+                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).testTag("mainCamera").background(Color(0xFF080F1E))) {
                     if(cameraGranted && model.cameraActive) key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it; if(it.startsWith("카메라 오류")) { model.pause(); output.suspendOutput() }}) }
                     else Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text(if(!cameraGranted) "카메라 권한을 허용해 주세요." else model.message,color=Color.White)
@@ -130,8 +137,11 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     }
                     if(cameraGranted && model.cameraActive) {
                         CameraOverlay(model.frame,Modifier.fillMaxSize(),preferences.lowVision && model.flowState in listOf("S4","S5"))
-                        if(!showOrderConfirmation) Text(if(model.detailMode) "글자 가까이 비추기 · 손끝 안내 중지" else if(model.found) "화면 인식 중" else "키오스크 전체 화면을 비춰 주세요",color=Color.White,modifier=Modifier.align(Alignment.TopCenter).background(Color(0xDD080F1E)).padding(8.dp))
                         if(cameraStatus.startsWith("카메라 오류")) TextButton(onClick={retry++},modifier=Modifier.align(Alignment.Center)) { Text("카메라 다시 연결") }
+                    }
+                    if(model.order!=null && !showOrderConfirmation) FilledTonalButton(onClick=model::showOrderConfirmation,modifier=Modifier.align(Alignment.BottomEnd)) { Text("주문 보기") }
+                    if(showOrderConfirmation) Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max=maxHeight * .5f),tonalElevation=8.dp) {
+                        NativeOrderConfirmation(model.order!!,model.progressText(),Modifier.padding(8.dp),model::closeOrderConfirmation)
                     }
                 }
                 if(model.detailMode) {
@@ -146,13 +156,10 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     }
                 }
                 if(model.running && !model.paused && model.flowState!="S6") {
-                    if(model.textOrderOpen || model.recording || model.speechBusy || model.flowState=="S3") {
-                        Column(Modifier.fillMaxWidth().heightIn(max=280.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-
-                        Text("예: 따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해 주세요.")
-                        Text(model.speechStatus)
-                        if(!model.modelInstalled) NativeButton("자체 음성 모델 받기 · 약 485MB",enabled=!model.speechBusy) { model.downloadSpeech() }
-                        else NativeButton("자체 모델로 말하기",enabled=!model.speechBusy && model.menu.isNotEmpty()) {
+                    if(model.textOrderOpen || model.recording || model.speechBusy || (model.flowState=="S3" && model.order==null)) {
+                        Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                        if(!model.modelInstalled && !model.recording && !model.speechBusy) TextButton(onClick={modelInfoOpen=true}) { Text("음성 모델 준비") }
+                        else if(!model.recording && !model.speechBusy && !model.textOrderOpen) NativeButton("주문 말하기",enabled=model.menu.isNotEmpty()) {
                             output.suspendOutput()
                             if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.listen()
                             else { pendingMic=true; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
@@ -160,31 +167,30 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                         if(model.recording) NativeButton("말하기 완료") { model.finishSpeech() }
                         if(model.speechBusy) NativeButton("음성 작업 취소") { model.cancelSpeech(); output.resumeOutput() }
                         if(model.textOrderOpen) {
-                            OutlinedTextField(model.orderDraft,model::editOrderDraft,label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=2)
+                            OutlinedTextField(model.orderDraft,model::editOrderDraft,label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=1,maxLines=2)
                             NativeButton("입력한 주문 확인",enabled=!model.speechBusy) { model.submit(model.orderDraft) }
-                        } else NativeButton("직접 입력 주문") { model.toggleTextOrder() }
+                        } else if(!model.recording && !model.speechBusy) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
                         model.rag?.let { result ->
                             result.ambiguities.firstOrNull()?.let { ambiguity ->
                                 Text("‘${ambiguity.original}’과 비슷한 메뉴를 선택해 주세요.")
-                                ambiguity.candidates.forEach { candidate -> NativeButton(candidate.menu.name+if(candidate.menu.soldOut) " · 품절" else "",enabled=!candidate.menu.soldOut) { model.selectCandidate(candidate) } }
+                                var candidatePage by remember(ambiguity) { mutableIntStateOf(0) }
+                                val candidate=ambiguity.candidates[candidatePage]
+                                NativeButton(candidate.menu.name+if(candidate.menu.soldOut) " · 품절" else "",enabled=!candidate.menu.soldOut) { model.selectCandidate(candidate) }
+                                if(ambiguity.candidates.size>1) Row { TextButton(onClick={candidatePage=(candidatePage+1)%ambiguity.candidates.size}) { Text("다른 후보 (${candidatePage+1}/${ambiguity.candidates.size})") } }
                             }
                         }
                         if(model.recommendations.isNotEmpty()) {
-                            Text("등록된 메뉴 후보입니다. 재료·알레르기 정보는 보장하지 않습니다. 선택 후 수량·옵션을 다시 입력해 주세요.")
-                            model.recommendations.forEach { candidate ->
-                                NativeButton("후보 선택 · ${candidate.menu.name}",enabled=!model.speechBusy) { model.selectRecommendation(candidate) }
-                            }
+                            var candidatePage by remember(model.recommendations) { mutableIntStateOf(0) }
+                            val candidate=model.recommendations[candidatePage]
+                            NativeButton("후보 선택 · ${candidate.menu.name}",enabled=!model.speechBusy) { model.selectRecommendation(candidate) }
+                            if(model.recommendations.size>1) TextButton(onClick={candidatePage=(candidatePage+1)%model.recommendations.size}) { Text("다른 후보 (${candidatePage+1}/${model.recommendations.size})") }
+
                         }
-                        Text(model.message,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
                         }
                     } else if(model.order==null) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
                 }
-                if(showOrderConfirmation) {
-                    NativeOrderConfirmation(model.order!!,model.progressText(),Modifier.fillMaxWidth().weight(if(LocalDensity.current.fontScale>1.6f) .92f else .85f))
-                } else {
-                    Text(model.message,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
-                        modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite; contentDescription=model.message })
-                }
+                if(model.flowState=="SE") NativeButton("화면 다시 확인") { model.recoverScreen() }
+                NativeStatus(model.message)
                 NativeHomeActions(model.running,model.ready,output.lastText!=null,
                     { if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA) },
                     { output.resumeOutput(); output.repeat() })

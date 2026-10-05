@@ -260,7 +260,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                     commands.execute { if(cameraGeneration.get()!=generation) return@execute; val okay=SonkkeutEngine.setTarget(candidate.id)
                         main.post { if(!closed && cameraGeneration.get()==generation && screen?.keyframe==keyframe) announce(if(okay) "${candidate.text} 버튼으로 안내합니다" else "화면이 바뀌었습니다. 다시 확인해 주세요.") }
                     }
-                } else announce("선택한 버튼을 현재 화면에서 확실하게 찾지 못했습니다. 화면 읽기로 다시 확인해 주세요.")
+                } else announce("선택한 버튼을 현재 화면에서 확실하게 찾지 못했습니다. 화면 다시 확인을 눌러 주세요.")
             } else if(requested==null) applyAction(flow.accept(current))
             if(order==null && !orderPrompted && !textOrderOpen && !speechBusy && menu.isNotEmpty()) { orderPrompted=true; speechRequested=true }
         } }
@@ -328,7 +328,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                 val next=NativeOrderParser.parse(result?.text ?: text,menu)
                 if (!running || paused || page!="home") return@launch
                 flow.submit(next); order=next; flowState=flow.state
-                beginOrderGuidance()
+                orderPresentationId++; orderConfirmationOpen=true; awaitingOrderPresentation=true
                 announce(next.confirmation())
                 commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }
             } catch (e: CancellationException) { throw e }
@@ -354,8 +354,22 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         resetOrder(); rag=null; rawSpeech=""; recommendations=emptyList(); orderDraft=draft; textOrderOpen=true; flowState="S3"
         announce("${candidate.menu.name}를 입력란에 넣었습니다. 수량·옵션과 매장 또는 포장을 다시 입력하고 주문을 확인해 주세요.")
     }
+    var orderPresentationId by mutableIntStateOf(0)
+        private set
+    var orderConfirmationOpen by mutableStateOf(false)
+        private set
+    var awaitingOrderPresentation by mutableStateOf(false)
+        private set
+    fun closeOrderConfirmation() { orderConfirmationOpen=false }
+    fun showOrderConfirmation() { if(order!=null) orderConfirmationOpen=true }
+    fun orderConfirmationPresented() {
+        if(awaitingOrderPresentation && order!=null && running && !paused) {
+            awaitingOrderPresentation=false
+            beginOrderGuidance()
+        }
+    }
     private fun beginOrderGuidance() {
-        if(flow.state!="S3" || order==null) return
+        if(order==null) return
         flow.recover(); flow.submit(order!!); flow.paused=false; flow.confirm(); open("home"); start(); announce(flow.message)
     }
     private fun reportCompletion() {
@@ -372,7 +386,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         val base=server
         viewModelScope.launch { usage.enqueue(base,payload) }
     }
-    private fun resetOrder() { flow=NativeOrderFlow(); flowState=flow.state; order=null; lastTarget=null; pendingManual=null; manualGuidance=false; commands.execute { SonkkeutEngine.clearTarget() } }
+    private fun resetOrder() { orderConfirmationOpen=false; awaitingOrderPresentation=false; flow=NativeOrderFlow(); flowState=flow.state; order=null; lastTarget=null; pendingManual=null; manualGuidance=false; commands.execute { SonkkeutEngine.clearTarget() } }
     fun refreshSpeechStatus() { val status=whisper.status(); modelInstalled=status["installed"]==true; if (!speechBusy) speechStatus=if(modelInstalled) "자체 Whisper v3 준비됨" else "자체 Whisper v3 다운로드 필요 · 약 485MB" }
     fun downloadSpeech() {
         if (speechBusy) return
