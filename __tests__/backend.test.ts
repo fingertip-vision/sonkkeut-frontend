@@ -51,6 +51,12 @@ test('deleted stores and malformed or mismatched menus cannot silently use cache
 });
 
 const usage = (event_id: string): Usage => ({app_version: '0.1.0', model_version: '2026.10.02', completed: true, duration_s: 12, steps: [], event_id});
+test('an intentionally cancelled menu request cannot return a cache from the abandoned server', async () => {
+  await AsyncStorage.setItem(`menu:${base}:${code}`, JSON.stringify({menu}));
+  const controller = new AbortController(); controller.abort();
+  fetchMock.mockRejectedValueOnce(new Error('cancelled'));
+  await expect(loadMenu(base, code, controller.signal)).rejects.toThrow('cancelled');
+});
 test('simultaneous session queue writes survive an outage and retry with the same identifiers', async () => {
   fetchMock.mockRejectedValue(new Error('offline'));
   await Promise.all([enqueueUsage(base, usage('first-session')), enqueueUsage(base, usage('second-session'))]);

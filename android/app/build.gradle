@@ -84,8 +84,8 @@ android {
         applicationId "com.sonkkeut"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "0.1.3"
+        versionCode 5
+        versionName "0.1.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // MediaPipe Tasks does not ship x86_64 JNI; package one consistent phone ABI.
         ndk { abiFilters "arm64-v8a" }

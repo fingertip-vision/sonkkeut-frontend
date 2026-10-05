@@ -29,7 +29,7 @@ async function request<T>(base: string, path: string, read: (response: Response)
   finally {clearTimeout(timeout); init?.signal?.removeEventListener('abort', cancel);}
 }
 
-class MenuResponseError extends Error {
+export class MenuResponseError extends Error {
   constructor(message: string, readonly retryable = false) {super(message);}
 }
 
@@ -46,7 +46,15 @@ function isMenu(value: unknown, code: string): value is Menu {
         && Array.isArray(o.values) && o.values.every(v => typeof v === 'string')))));
 }
 
-export async function loadMenu(base: string, code: string): Promise<{menu: Menu; offline: boolean}> {
+export async function cachedMenu(base: string, code: string): Promise<Menu | undefined> {
+  try {
+    const raw = await AsyncStorage.getItem(`menu:${validateBaseUrl(base)}:${code.trim().toUpperCase()}`);
+    const parsed = raw ? JSON.parse(raw) : undefined;
+    return parsed && isMenu(parsed.menu, code.trim().toUpperCase()) ? parsed.menu : undefined;
+  } catch (_) {return undefined;}
+}
+
+export async function loadMenu(base: string, code: string, signal?: AbortSignal): Promise<{menu: Menu; offline: boolean}> {
   base = validateBaseUrl(base);
   code = code.trim().toUpperCase();
   if (!/^[A-Z2-9]{6}$/.test(code)) {throw new Error('매장 코드는 6자리입니다.');}
@@ -69,26 +77,27 @@ export async function loadMenu(base: string, code: string): Promise<{menu: Menu;
       if (!isMenu(menu, code)) {throw new MenuResponseError('매장 코드 또는 메뉴 응답 형식이 올바르지 않습니다.');}
       try {await AsyncStorage.setItem(key, JSON.stringify({menu, etag: response.headers.get('etag')}));} catch (_) {}
       return {menu, offline: false};
-    }, {headers: cache?.etag ? {'If-None-Match': cache.etag} : {}});
+    }, {headers: cache?.etag ? {'If-None-Match': cache.etag} : {}, signal});
   } catch (e) {
+    if (signal?.aborted) {throw e;}
     if (cache && (!(e instanceof MenuResponseError) || e.retryable)) {return {menu: cache.menu, offline: true};}
     throw e;
   }
 }
 
-export async function health(base: string) {
+export async function health(base: string, signal?: AbortSignal) {
   await request(validateBaseUrl(base), '/healthz', async response => {
     if (!response.ok || !(await response.json()).ok) {throw new Error('서버 연결에 실패했습니다.');}
-  });
+  }, {signal});
 }
 
-export async function modelVersion(base: string) {
+export async function modelVersion(base: string, signal?: AbortSignal) {
   return request(validateBaseUrl(base), '/api/models/latest', async response => {
     if (!response.ok) {throw new Error('모델 정보를 확인하지 못했습니다.');}
     const version = (await response.json()).version;
     if (typeof version !== 'string' || !version.trim()) {throw new Error('모델 응답 형식 오류');}
     return version;
-  });
+  }, {signal});
 }
 
 // Serialize queue access so two completed sessions cannot overwrite one another.
