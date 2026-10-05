@@ -26,6 +26,7 @@ class GuidanceOutput(context: Context) {
     private var initializationFinished = false
     private var suspended = false
     private var currentId: String? = null
+    private var completion: ((Boolean)->Unit)? = null
     private var sequence = 0
     private var voiceEnabled = true
     private var vibrationEnabled = true
@@ -37,7 +38,7 @@ class GuidanceOutput(context: Context) {
     }
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build()
     private val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-        .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ change -> if (change < 0) stop() }, main).build()
+        .setAudioAttributes(attributes).setOnAudioFocusChangeListener({ change -> if (change < 0) { val done=completion; stop(); done?.invoke(false) } }, main).build()
     var ready by mutableStateOf(false)
         private set
     var speechStatus by mutableStateOf("한국어 음성 안내를 준비하고 있습니다.")
@@ -66,8 +67,8 @@ class GuidanceOutput(context: Context) {
                             engine.setAudioAttributes(attributes)
                             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                 override fun onStart(id: String?) { main.post { if (currentId == id && !closed) outputStatus = "음성 안내 재생 중" } }
-                                override fun onDone(id: String?) { main.post { if (currentId == id && !closed) { currentId = null; audio.abandonAudioFocusRequest(focus); outputStatus = "음성 안내 재생 완료" } } }
-                                @Deprecated("Android callback") override fun onError(id: String?) { main.post { if (currentId == id && !closed) { stop(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요." } } }
+                                override fun onDone(id: String?) { main.post { if (currentId == id && !closed) { val done=completion; completion=null; currentId = null; audio.abandonAudioFocusRequest(focus); outputStatus = "음성 안내 재생 완료"; done?.invoke(true) } } }
+                                @Deprecated("Android callback") override fun onError(id: String?) { main.post { if (currentId == id && !closed) { val done=completion; stop(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요."; done?.invoke(false) } } }
                             })
                             ready = true
                             speechStatus = "오프라인 한국어 음성 안내 사용 가능"
@@ -95,22 +96,29 @@ class GuidanceOutput(context: Context) {
         gate.accept("explicit:${SystemClock.elapsedRealtime()}", text, SystemClock.elapsedRealtime(), false, false)
         lastText = text; stopDevices(); speak(text, explicit = true)
     }
+    fun dialog(text: String,done: (Boolean)->Unit) {
+        if(closed || !ready) { done(false); return }
+        resumeOutput(); stopDevices(); lastText=text; completion=done
+        speak(text,explicit=true)
+    }
     private fun speak(text: String, explicit: Boolean = false) {
         if (!voiceEnabled && !explicit) { outputStatus = "화면 안내: $text"; return }
         if (!explicit && accessibility.isTouchExplorationEnabled) { outputStatus = "화면 읽기 안내: $text"; return }
         if (!ready) { outputStatus = "화면 안내: $text"; return }
         if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             outputStatus = "다른 소리가 재생 중입니다. 다시 듣기를 눌러 주세요."
+            val done=completion; completion=null; done?.invoke(false)
             return
         }
         tts?.setSpeechRate(speechRate)
         val id = "guidance-${++sequence}"
         currentId = id
         if (tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) {
-            stopDevices(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요."
+            val done=completion; stopDevices(); outputStatus = "음성 재생에 실패했습니다. 다시 듣기로 재시도해 주세요."; done?.invoke(false)
         }
+        if(completion!=null) main.postDelayed({ if(currentId==id && completion!=null) { val done=completion; stopDevices(); done?.invoke(false) } },20000)
     }
-    private fun stopDevices() { currentId = null; tts?.stop(); vibrator?.cancel(); audio.abandonAudioFocusRequest(focus) }
+    private fun stopDevices() { completion=null; currentId = null; tts?.stop(); vibrator?.cancel(); audio.abandonAudioFocusRequest(focus) }
     fun stop() { stopDevices(); gate.clearDeduplication(); outputStatus = "음성과 진동을 멈췄습니다." }
     fun suspendOutput() { suspended = true; stop() }
     fun resumeOutput() { suspended = false; gate.clearDeduplication() }

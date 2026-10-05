@@ -1,13 +1,13 @@
-# 손끝길 · Kotlin Android 앱 0.2.0
+# 손끝길 · Kotlin Android 앱 0.2.1
 
 현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델, 매장별 SQLite 메뉴 보정, AWS 자동 연결을 유지합니다.
 
-- [Kotlin APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.0-native-kotlin-20261005/sonkkeut-kotlin.apk) · 기존 앱에 업데이트 설치
+- [Kotlin APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.1-voice-dialog/sonkkeut-kotlin.apk) · 기존 앱에 업데이트 설치
 - [Android Studio 실행과 네이티브 구조](docs/native-kotlin.md) · 이 레포의 루트 폴더를 Open
 - 프론트 `native/kotlin-20261005`, 형제 AI 레포 `codex/unified-ai-20261003` 필요
-- 단위 테스트 63개, 에뮬레이터 테스트 12개 통과. S26 Ultra 실물 사용성은 미검증
+- 단위 테스트 83개, 에뮬레이터 테스트 18개 통과. S26 Ultra 실물 사용성은 미검증
 
-LLM과 음식 속성 의미 검색은 아직 포함하지 않습니다. 현재 보정은 등록된 메뉴 이름·별칭·발음 유사도 검색입니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
+0.2.1은 현재 키오스크 화면부터 시작하는 단계별 음성 확인·수정, 스크롤/탭 탐색 안내, 유사 메뉴 제안, 사용자 준비 후 근접 타일 OCR을 추가합니다. 메뉴·설정의 **음성만으로 단계별 주문**에서 시작하세요. [사용법·상태 흐름·검증 범위](docs/voice-interaction.md)를 확인하세요. 의미 추천은 소규모 음식 개념 사전의 코사인 벡터이며 신경망 임베딩·LLM은 포함하지 않습니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
 
 ## 이전 React Native 앱 기록
 

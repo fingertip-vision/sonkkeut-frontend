@@ -16,11 +16,12 @@ class NativeSystemSpeech(private val context: Context) {
     private val main=Handler(Looper.getMainLooper())
     private var generation=0L
     val available get()=Build.VERSION.SDK_INT>=31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-    fun listen(names: List<String>,result: (String)->Unit,error: (String)->Unit) {
+    fun listen(names: List<String>,result: (String)->Unit,error: (String)->Unit) = listenScored(names,{ text,_ -> result(text) },error)
+    fun listenScored(names: List<String>,result: (String,Double?)->Unit,error: (String)->Unit) {
         cancel()
         if(!available) { error("기기 안의 한국어 음성 인식을 사용할 수 없습니다. 자체 모델이나 직접 입력을 이용해 주세요."); return }
         val token=++generation
-        val engine=SpeechRecognizer.createOnDeviceSpeechRecognizer(context); recognizer=engine
+        val engine=try { SpeechRecognizer.createOnDeviceSpeechRecognizer(context) } catch(e: Exception) { error("기기 음성 인식을 준비하지 못했습니다."); return }; recognizer=engine
         engine.setRecognitionListener(object: RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?)=Unit
             override fun onBeginningOfSpeech()=Unit
@@ -32,7 +33,8 @@ class NativeSystemSpeech(private val context: Context) {
             override fun onError(code: Int) { if(token==generation) { release(); error("기기 음성을 인식하지 못했습니다 ($code). 다시 말씀하거나 직접 입력해 주세요.") } }
             override fun onResults(results: Bundle?) { if(token==generation) {
                 val text=results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                release(); if(text.isNullOrBlank()) error("음성을 듣지 못했습니다. 다시 말씀해 주세요.") else result(text)
+                val confidence=results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)?.firstOrNull()?.toDouble()?.takeIf { it.isFinite() && it in 0.0..1.0 }
+                release(); if(text.isNullOrBlank()) error("음성을 듣지 못했습니다. 다시 말씀해 주세요.") else result(text,confidence)
             } }
         })
         val intent=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ko-KR")

@@ -16,6 +16,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
 
 class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private val storage = application.getSharedPreferences("native_app",0)
@@ -41,6 +42,11 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private var connection: Job? = null
     private var menuVersion = -1
     private var flow = NativeOrderFlow()
+    internal val orderFlow get()=flow
+    val conversation=NativeConversation(this)
+    var dialogTurn by mutableStateOf<DialogTurn?>(null); internal set
+    @Volatile private var detailScanner: DetailScanner?=null
+    private val detailRequested=AtomicBoolean(false)
     @Volatile private var lastTarget: String? = null
     private var pendingManual: Pair<String,String>? = null
     var server by mutableStateOf(storage.getString("server", DEFAULT_SERVER)!!); private set
@@ -84,6 +90,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Throwable) { main.post { if (!closed) message="AI 준비 실패: ${e.message}" } }
         }
         viewModelScope.launch { while (isActive) { delay(15000); if (menu.isEmpty() || connectionMessage.startsWith("오프라인") || connectionMessage.startsWith("연결 실패")) connect() } }
+        viewModelScope.launch { while(isActive) { delay(1000); conversation.tick(SystemClock.elapsedRealtime()); if(conversation.navigating) forceFreshScreen() } }
     }
     fun connect() {
         connection?.cancel(); val token = ++connectionGeneration
@@ -91,9 +98,16 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         connection = viewModelScope.launch {
             try {
                 val result=menuClient.load(base,code)
+                val snapshot=withContext(Dispatchers.IO) {
+                    val payload=JSONArray(result.items.map { m -> JSONObject().put("name",m.name).put("aliases",JSONArray(m.aliases)).put("sold_out",m.soldOut).put("category",m.category) })
+                    val stored=JSONArray(database.catalog(JSONArray(listOf(base,code,result.version)).toString(),payload.toString()))
+                    val prices=result.items.associate { it.name to it.price }
+                    (0 until stored.length()).map { i -> val m=stored.getJSONObject(i); val aliases=m.getJSONArray("aliases")
+                        MenuDocument(m.getString("name"),(0 until aliases.length()).map { aliases.getString(it) },m.getBoolean("sold_out"),m.optString("category"),prices[m.getString("name")]) }
+                }
                 if (token != connectionGeneration) return@launch
-                if (menuVersion >= 0 && menuVersion != result.version && order != null) { resetOrder(); announce("메뉴가 변경됐습니다. 주문을 다시 확인해 주세요.") }
-                menu=result.items; menuVersion=result.version; storeName=result.store
+                if (menuVersion >= 0 && menuVersion != result.version && (order != null || conversation.active)) { conversation.stop(); resetOrder(); announce("메뉴가 변경됐습니다. 주문을 다시 확인해 주세요.") }
+                menu=snapshot; menuVersion=result.version; storeName=result.store
                 connectionMessage=if (result.offline) "오프라인 · 저장된 ${result.store} 메뉴" else "연결됨 · ${result.store}"
                 whisper.setMenuContext(menu.map { it.name })
                 val aliases=menu.flatMap { m -> (listOf(m.name)+m.aliases).map { it to m.name } }.groupBy { it.first }
@@ -108,18 +122,26 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         try {
             val normalized=BackendAddress.normalize(base,BuildConfig.DEBUG)
             val normalizedCode=code.trim().uppercase(); require(Regex("[A-Z0-9]{6}").matches(normalizedCode)) { "매장 코드는 영문·숫자 6자리입니다." }
-            if (normalized != server || normalizedCode != storeCode) { resetOrder(); menu=emptyList(); menuVersion=-1; screen=null; rawSpeech=""; rag=null; cancelSpeech() }
+            if (normalized != server || normalizedCode != storeCode) { conversation.stop(); resetOrder(); menu=emptyList(); menuVersion=-1; screen=null; rawSpeech=""; rag=null; cancelSpeech() }
             server=normalized; storeCode=normalizedCode
             storage.edit().putString("server",server).putString("storeCode",storeCode).apply(); connect()
         } catch (e: Exception) { connectionMessage=e.message ?: "주소와 코드를 확인해 주세요." }
     }
-    fun open(value: String) { if (page!=value) { cameraGeneration.incrementAndGet(); cancelSpeech(); page=value; SonkkeutEngine.running=false }; if (value=="home") SonkkeutEngine.running=!paused && ready }
+    fun open(value: String) { if (page!=value) { if(value!="home") conversation.stop(); cameraGeneration.incrementAndGet(); cancelSpeech(); page=value; SonkkeutEngine.running=false }; if (value=="home") SonkkeutEngine.running=!paused && ready }
     fun start() { if (!ready) { announce("AI를 준비하고 있습니다. 잠시 후 다시 시작해 주세요."); return }; cameraGeneration.incrementAndGet(); paused=false; flow.paused=false; SonkkeutEngine.running=page=="home"; commands.execute { SonkkeutEngine.requestKeyframe() }; announce("카메라로 키오스크 전체 화면을 비춰 주세요.") }
-    fun pause() { cameraGeneration.incrementAndGet(); if(flow.state=="S5") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
+    fun pause() { conversation.stop(); cameraGeneration.incrementAndGet(); if(flow.state=="S5") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
     fun stopForBackground() { pause() }
     fun process(image: Image, rotation: Int) {
         if (closed || paused || page!="home" || !ready) return
         val token=cameraGeneration.get()
+        if(conversation.closeup && detailRequested.compareAndSet(true,false)) {
+            try {
+                val scanner=detailScanner ?: DetailScanner(getApplication()).also { detailScanner=it }
+                val result=scanner.scan(image,rotation) { closed || cameraGeneration.get()!=token || !conversation.closeup }
+                main.post { if(!closed && cameraGeneration.get()==token && conversation.closeup) conversation.detail(result) }
+            } catch(e: Exception) { main.post { if(!closed && cameraGeneration.get()==token && conversation.closeup) conversation.detail(DetailScan(emptyList(),0,0,true)) } }
+            return
+        }
         val result=SonkkeutEngine.processYuv(image,rotation) ?: return
         main.post { if (!closed && !paused && page=="home" && cameraGeneration.get()==token) accept(result) }
     }
@@ -128,6 +150,8 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         val json=JSONObject(value)
         json.optJSONObject("structure")?.let { structure -> runCatching { RecognizedScreen.from(structure) }.onSuccess { current ->
             screen=current
+            conversation.onScreen(current)
+            if(conversation.active) flow.paused=conversation.blocking
             val requested=pendingManual
             if(requested!=null && found) {
                 pendingManual=null
@@ -142,27 +166,30 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
             } else if(requested==null) applyAction(flow.accept(current))
         } }
         json.optJSONObject("event")?.let { event ->
-            if (event.optString("type")=="press") flow.press()
+            if (event.optString("type")=="press" && !conversation.blocking) flow.press()
             vibeHz=event.optDouble("vibe_hz",0.0)
             val text=event.optString("speak")
-            if (text.isNotBlank()) announce(text,event.optString("type")=="press")
+            if (text.isNotBlank() && (!conversation.active || conversation.guidanceAllowed)) announce(text,event.optString("type")=="press")
         }
         json.optJSONObject("verdict")?.let { verdict ->
             flow.action?.let { previous -> usageSteps += JSONObject().put("screen_type",flow.screen?.type ?: "other").put("target_kind",previous.target.kind)
                 .put("result",verdict.optString("result")).put("hints",0).put("fail_reason",if(verdict.optString("result")=="success") JSONObject.NULL else verdict.optString("reason")) }
-            if(order!=null) { flow.verdict(verdict.optString("result"),verdict.optString("reason"),verdict.optString("speak")); announce(flow.message) }
+            if(conversation.navigating) { commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null } }
+            else if(order!=null) { flow.verdict(verdict.optString("result"),verdict.optString("reason"),verdict.optString("speak")); if(!conversation.active || conversation.guidanceAllowed) announce(flow.message) }
             else { announce(verdict.optString("speak")); commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null } }
             commands.execute { SonkkeutEngine.requestKeyframe() }
         }
-        if (json.optBoolean("target_missing")) { flow.recover(); lastTarget=null; announce("화면이 바뀌었습니다. 목표를 다시 확인합니다."); commands.execute { SonkkeutEngine.clearTarget(); SonkkeutEngine.requestKeyframe() } }
+        if (json.optBoolean("target_missing")) { if(!conversation.blocking) flow.recover(); lastTarget=null; if(!conversation.active || conversation.guidanceAllowed) announce("화면이 바뀌었습니다. 목표를 다시 확인합니다."); commands.execute { SonkkeutEngine.clearTarget(); SonkkeutEngine.requestKeyframe() } }
         val hint=json.optString("hint")
-        if (!found && hint.isNotBlank()) message=hint
+        if (!found && hint.isNotBlank() && !conversation.active) message=hint
+        val tip=json.optJSONArray("tip")?.let { a -> (0 until a.length()).map { a.optDouble(it) } }
+        conversation.frame(if(found && json.optDouble("tip_conf",0.0)>=.5 && json.optDouble("tip_pointing",0.0)>=.5) tip else null,SystemClock.elapsedRealtime())
         flowState=flow.state
         reportCompletion()
     }
     private fun applyAction(action: NativeAction?) {
         flowState=flow.state
-        if (order!=null) message=flow.message
+        if (order!=null && !conversation.blocking) message=flow.message
         if (action==null || action.target.id==lastTarget) return
         val target=action.target.id; val keyframe=screen?.keyframe
         lastTarget=target
@@ -181,6 +208,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     }
     fun recoverScreen() { flow.recover(); lastTarget=null; commands.execute { SonkkeutEngine.clearTarget(); SonkkeutEngine.requestKeyframe() }; open("home"); start() }
     fun submit(text: String, fromSpeech: Boolean=false) {
+        conversation.stop()
         resetOrder()
         val token=++speechGeneration
         recording=false; speechBusy=true
@@ -217,6 +245,42 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         if(flow.state!="S3" || order==null) return
         usageEventId=java.util.UUID.randomUUID().toString(); orderStartedAt=SystemClock.elapsedRealtime(); completionReported=false; usageSteps.clear()
         applyAction(flow.confirm()); open("home"); start(); if (flow.action==null) announce(flow.message)
+    }
+    fun startConversation() {
+        if(!ready || menu.isEmpty()) { announce("AI와 매장 메뉴를 먼저 준비해 주세요."); return }
+        if(!modelInstalled && !systemSpeechAvailable) { announce("자체 음성 모델을 받거나 기기 한국어 음성 인식을 준비해 주세요."); open("order"); return }
+        conversation.stop(); resetOrder(); open("home"); start()
+        if(modelInstalled && whisper.status()["ready"]!=true) {
+            val token=++speechGeneration; speechBusy=true; message="자체 음성 모델을 준비한 뒤 화면별 대화를 시작합니다."
+            whisper.prepare({ if(!closed && token==speechGeneration && page=="home" && !paused) { speechBusy=false; conversation.begin() } },
+                { error -> if(!closed && token==speechGeneration) { speechBusy=false; pause(); message="음성 모델 준비 실패: ${error.message}" } })
+        } else conversation.begin()
+    }
+    internal fun rawDialogSpeech(text: String) { rawSpeech=text }
+    internal fun messageFromDialog(text: String) { message=text }
+    internal fun clearConversationTarget() { lastTarget=null; commands.execute { SonkkeutEngine.clearTarget() } }
+    internal fun forceFreshScreen() { commands.execute { SonkkeutEngine.requestKeyframe() } }
+    internal fun prepareDetailScan() { detailRequested.set(true) }
+    internal fun navigationTarget(target: RecognizedElement,text: String) {
+        targetAttempt++; lastTarget=target.id
+        commands.execute { val success=SonkkeutEngine.setTarget(target.id,mapOf("changed" to true)); main.post { if(!closed && conversation.navigating) announce(if(success) text else "화면이 바뀌었습니다. 다음 화면을 확인합니다.") } }
+    }
+    internal fun discardStepOrder() { resetOrder() }
+    internal fun confirmStepOrder(next: NativeOrder) {
+        flow.submit(next); order=next; flow.paused=false; flow.confirm(); flowState=flow.state
+        usageEventId=java.util.UUID.randomUUID().toString(); orderStartedAt=SystemClock.elapsedRealtime(); completionReported=false; usageSteps.clear()
+    }
+    internal fun updateStepChoice(field: String,value: String) { order=flow.updateChoice(field,value); flowState=flow.state; clearConversationTarget() }
+    fun dialogPromptCompleted(token: Long,success: Boolean) { conversation.afterPrompt(token,success) }
+    internal fun captureDialogVoice(token: Long) {
+        if(!conversation.active || token!=conversation.dialog.generation) return
+        val generation=++speechGeneration; speechBusy=true; recording=true
+        fun result(text: String,evidence: SpeechEvidence) { if(!closed && generation==speechGeneration && token==conversation.dialog.generation) { speechBusy=false; recording=false; conversation.spoken(text,evidence) } }
+        fun fail(message: String) { if(!closed && generation==speechGeneration && token==conversation.dialog.generation) { speechBusy=false; recording=false; conversation.spoken("",SpeechEvidence(noSpeech=1.0)) } }
+        if(modelInstalled) {
+            speechProvider="custom"
+            whisper.listen({ r -> result(if(r.noSpeechProbability>.8) "" else r.text,SpeechEvidence(decoderScore=r.sequenceScore,noSpeech=r.noSpeechProbability)) },{ e -> fail(e.message ?: "음성 오류") })
+        } else { speechProvider="system"; systemSpeech.listenScored(menu.map { it.name },{ text,score -> result(text,SpeechEvidence(probability=score)) },{ fail(it) }) }
     }
     private fun reportCompletion() {
         if(flow.state!="S6" || completionReported || usageEventId.isBlank()) return
@@ -256,7 +320,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     fun announce(text: String, press: Boolean=false) { message=text; if (announcement!=text || press) { announcement=text; pressAnnouncement=press; announcementNumber++ } }
     override fun onCleared() {
         closed=true; speechGeneration++; connectionGeneration++; runCatching { network.unregisterNetworkCallback(callback) }
-        usage.close(); systemSpeech.cancel(); whisper.close(); database.close(); SonkkeutEngine.running=false; commands.execute { SonkkeutEngine.release() }; commands.shutdown()
+        conversation.stop(); usage.close(); systemSpeech.cancel(); whisper.close(); database.close(); SonkkeutEngine.running=false; commands.execute { detailScanner?.close(); detailScanner=null; SonkkeutEngine.release() }; commands.shutdown()
         main.removeCallbacksAndMessages(null)
     }
     companion object { const val DEFAULT_SERVER="https://amazing-manually-transcript-est.trycloudflare.com" }

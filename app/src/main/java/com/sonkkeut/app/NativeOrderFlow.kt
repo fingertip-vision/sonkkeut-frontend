@@ -15,6 +15,16 @@ class NativeOrderFlow {
     private val visited = mutableSetOf<String>()
     private data class PendingAdd(val item: Int, val count: Int?, val keyframe: Int)
     private var pending: PendingAdd? = null
+    fun currentItem() = order?.items?.getOrNull(remaining.indexOfFirst { it>0 })
+    fun allAdded() = order!=null && remaining.none { it>0 }
+    fun optionApplied(value: String) = value in configured || screen?.elements.orEmpty().any { e ->
+        e.id in screen?.selected.orEmpty() && when(value) { "ice" -> Regex("^(ice|iced|아이스|차갑게)$").matches(NativeOrderParser.normalize(e.text)); "hot" -> Regex("^(hot|핫|따뜻한|따뜻하게)$").matches(NativeOrderParser.normalize(e.text)); else -> NativeOrderParser.normalize(e.text)==NativeOrderParser.normalize(value) }
+    }
+    fun updateChoice(field: String,value: String): NativeOrder? {
+        val intent=order ?: return null; val index=remaining.indexOfFirst { it>0 }
+        order=when(field) { "dine" -> intent.copy(dine=value); "temperature" -> intent.copy(items=intent.items.mapIndexed { i,item -> if(i==index) item.copy(temperature=value) else item }); "size" -> intent.copy(items=intent.items.mapIndexed { i,item -> if(i==index) item.copy(size=value) else item }); else -> intent }
+        action=null; enter("S2","화면의 선택을 다시 확인합니다."); return order
+    }
     private fun enter(next: String, text: String) { state = next; message = text; if (next in listOf("SE","S6")) action = null }
     fun submit(value: NativeOrder) {
         order = value; remaining = value.items.map { it.qty }.toMutableList(); confirmed = false; action = null

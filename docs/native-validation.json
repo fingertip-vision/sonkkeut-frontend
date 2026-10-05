@@ -1,12 +1,12 @@
 {
   "apk": {
     "passed": true,
-    "version": "0.2.0",
-    "version_code": 10,
+    "version": "0.2.1",
+    "version_code": 11,
     "application_id": "com.sonkkeut",
     "ui": "Kotlin / Jetpack Compose / CameraX",
-    "apk_sha256": "cfb3d1e0fc81aac25ce52606648c0c4373d046acb4baecf0f94d720a74acad99",
-    "apk_size_bytes": 65192405,
+    "apk_sha256": "b48e63034fd353025788aac9e6b94460ee7a8833b4be00f66618f7f70380e710",
+    "apk_size_bytes": 65233993,
     "react_native_runtime_present": false,
     "javascript_bundle_present": false,
     "original_models_unchanged": true,
@@ -19,13 +19,21 @@
       "hand_landmarker.task": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
     },
     "update_signature_matches_v0_1_8": true,
-    "kotlin_unit_tests": 63,
+    "kotlin_unit_tests": 83,
     "llm_included": false,
-    "physical_phone_tested": false
+    "physical_phone_tested": false,
+    "interaction_modules": [
+      "ScreenNavigator",
+      "VoiceDialogManager",
+      "MenuMatcher",
+      "VisionVerifier",
+      "DetailScanner"
+    ],
+    "semantic_retrieval": "Local domain concept cosine vectors, not a pretrained neural embedding model"
   },
   "android_emulator": {
     "passed": true,
-    "tests_passed": 12,
+    "tests_passed": 18,
     "tests_skipped": 0,
     "native_ui_tests": 3,
     "real_whisper_jni_inference": true,
@@ -37,6 +45,9 @@
     "react_activity_absent": true,
     "device": "Android API35 emulator with ARM64 translation",
     "physical_phone_microphone_tested": false,
+    "scripted_voice_dialog_replays": 5,
+    "real_closeup_tile_ocr_test": true,
+    "dialog_replay_scope": "Injected text and simulated TTS completion, not real microphone conversations",
     "release_apk_smoke": {
       "passed": true,
       "camera_start_pause_resume": true,

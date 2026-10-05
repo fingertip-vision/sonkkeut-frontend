@@ -62,6 +62,11 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     var retry by remember { mutableIntStateOf(0) }
     val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it) model.start() }
     val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="order") { if(pendingSystem) model.listenSystem() else model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false; pendingSystem=false }
+    val conversationPermissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        cameraGranted=ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED
+        if(cameraGranted && ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.startConversation()
+        else model.announce("음성 주문에는 카메라와 마이크 권한이 필요합니다.")
+    }
     SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]) }
     DisposableEffect(output) { onDispose { output.close() } }
     DisposableEffect(lifecycle) {
@@ -72,12 +77,18 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
         lifecycle.lifecycle.addObserver(observer); onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(model.targetAttempt,model.announcementNumber) {
+        if(model.conversation.active && !model.conversation.guidanceAllowed) return@LaunchedEffect
         if(outputSession[0]!=model.targetAttempt) { output.resetAttempt(); outputSession[0]=model.targetAttempt }
         if(outputSession[1]==model.announcementNumber) return@LaunchedEffect
         outputSession[1]=model.announcementNumber
         if(!model.recording && !model.speechBusy) output.resumeOutput()
         if(model.announcement.isNotBlank()) output.announce("native:${model.announcementNumber}",model.announcement,press=model.pressAnnouncement,
             vibration=if(model.pressAnnouncement) longArrayOf(0,70,60,70) else if(model.vibeHz>0) longArrayOf(0,25,(1000/model.vibeHz).toLong().coerceAtLeast(60),25) else null)
+    }
+    LaunchedEffect(model.dialogTurn?.generation) {
+        val turn=model.dialogTurn
+        if(turn!=null && model.conversation.active) output.dialog(turn.prompt) { okay -> model.dialogPromptCompleted(turn.generation,okay) }
+        else if(model.conversation.active) output.stop()
     }
     BackHandler(model.page!="home") { pendingMic=false; model.open("home") }
     fun go(page: String) { pendingMic=false; output.stop(); model.open(page) }
@@ -89,7 +100,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     TextButton(onClick={go("menu")},modifier=Modifier.heightIn(min=56.dp)) { Text("메뉴·설정") }
                 }
                 Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF080F1E))) {
-                    if(cameraGranted && !model.paused && model.ready) key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it}) }
+                    if(cameraGranted && !model.paused && model.ready) key(retry,model.conversation.closeup) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it}) }
                     else Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                         Text(if(!cameraGranted) "카메라 권한을 허용해 주세요." else model.message,color=Color.White)
                         Button(onClick={if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA)},enabled=model.ready || !cameraGranted,modifier=Modifier.heightIn(min=56.dp)) { Text(if(cameraGranted) "손끝길 시작" else "카메라 권한 허용") }
@@ -102,6 +113,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 }
                 Text(model.message,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
                     modifier=Modifier.fillMaxWidth().semantics { liveRegion=LiveRegionMode.Polite; contentDescription=model.message })
+                if(model.conversation.active) Text(if(model.recording) "듣고 있습니다 · ‘취소’로 종료" else if(model.speechBusy) "음성을 분석하고 있습니다" else if(model.conversation.closeup) model.conversation.status else "음성으로 단계별 주문 중",style=MaterialTheme.typography.bodyMedium)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     NativeButton(if(model.paused) "안내 계속" else "안내 중지",Modifier.weight(1f)) { if(model.paused) { if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA) } else { model.pause(); output.suspendOutput() } }
                     NativeButton("재안내",Modifier.weight(1f),output.lastText!=null) { output.resumeOutput(); output.repeat() }
@@ -109,6 +121,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             }
             "menu" -> NativePage("메뉴·설정",{go("home")}) {
                 Text(model.connectionMessage,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+                NativeButton("음성만으로 단계별 주문",enabled=model.ready && model.menu.isNotEmpty()) { conversationPermissions.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)) }
                 NativeButton("음성·직접 입력 주문") { go("order") }
                 NativeButton("화면 읽기·버튼 선택") { go("screen") }
                 NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
@@ -222,7 +235,7 @@ private fun NativeCamera(modifier: Modifier,model: NativeAppModel,status: (Strin
         var disposed=false; var provider: ProcessCameraProvider?=null
         val resolution=ResolutionSelector.Builder()
             .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-            .setResolutionStrategy(ResolutionStrategy(Size(1280,960),ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+            .setResolutionStrategy(ResolutionStrategy(if(model.conversation.closeup) Size(1920,1440) else Size(1280,960),ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
             .build()
         val preview=Preview.Builder().setResolutionSelector(resolution).build()
         val analysis=ImageAnalysis.Builder().setResolutionSelector(resolution).setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
