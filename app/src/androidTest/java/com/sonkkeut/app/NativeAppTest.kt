@@ -39,11 +39,19 @@ class NativeAppTest {
         val before=model().frames
         try { compose.waitUntil(45000) { model().frames>=before+2 } }
         catch(e: Exception) { throw AssertionError("input camera: frames=${model().frames}, before=$before, paused=${model().paused}, running=${model().running}, active=${model().cameraActive}, state=${model().flowState}, message=${model().message}, box=${compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot}",e) }
-        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("$name 한 잔 포장해 주세요")
-        compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("$name 한 잔 포장해 주세요")
+        compose.onNodeWithText("입력한 주문 확인").performClick()
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
-        assertNotEquals("S3",model().flowState)
+        compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
+        compose.onNodeWithText("주문 확인").assertExists()
+        val cameraBounds=compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithText("닫기").performClick()
+        compose.onNodeWithText("주문 보기").performClick()
+        compose.onNodeWithText("주문 확인").assertExists()
+        assertEquals(cameraBounds,compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot)
+        compose.runOnUiThread { model().submit("$name 한 잔 포장해 주세요") }
+        compose.waitUntil(20000) { model().order!=null && !model().speechBusy && !model().awaitingOrderPresentation }
         compose.onNodeWithText("주문 확인").assertExists()
         compose.onNodeWithText("기기 음성 인식으로 말하기").assertDoesNotExist()
         compose.onNodeWithText("설정").assertExists()
@@ -73,13 +81,13 @@ class NativeAppTest {
         compose.waitUntil(10000) { !model().speechBusy && model().recommendations.isNotEmpty() }
         assertNull(model().order)
         val selected=model().recommendations.first()
-        compose.onNodeWithText("후보 선택 · ${selected.menu.name}").performScrollTo().performClick()
+        compose.onNodeWithText("후보 선택 · ${selected.menu.name}").performClick()
         assertNull(model().order); assertTrue(model().textOrderOpen); assertEquals(selected.menu.name,model().orderDraft)
-        compose.onNode(hasSetTextAction()).performScrollTo().performTextClearance()
+        compose.onNode(hasSetTextAction()).performTextClearance()
         compose.onNode(hasSetTextAction()).performTextInput("${selected.menu.name} 두 잔 포장해 주세요")
-        compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
+        compose.onNodeWithText("입력한 주문 확인").performClick()
         compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
-        assertEquals(2,model().order!!.items.single().qty); assertNotEquals("S3",model().flowState)
+        assertEquals(2,model().order!!.items.single().qty); compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
     }
     @Test fun recognizedSpeechStartsOnlyForValidOrdersAndHidesRawTranscript() {
@@ -87,7 +95,7 @@ class NativeAppTest {
         val name=model().menu.first { !it.soldOut }.name
         compose.runOnUiThread { model().start(); model().submit("$name 한 잔 포장해 주세요",true) }
         compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
-        assertFalse(model().paused); assertNotEquals("S3",model().flowState)
+        assertFalse(model().paused); compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("주문 확인").assertExists()
         compose.onAllNodes(hasText("들은 문장:",substring=true)).assertCountEquals(0)
         compose.onAllNodes(hasText("보정 문장:",substring=true)).assertCountEquals(0)

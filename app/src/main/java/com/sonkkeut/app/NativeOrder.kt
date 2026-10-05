@@ -28,7 +28,7 @@ object NativeOrderParser {
             require(prev == null || prev.start != hit.start || prev.length != hit.length || prev.item.name == hit.item.name) { "같은 별칭의 메뉴가 여러 개입니다. 메뉴를 선택해 주세요." }
             if (prev == null || hit.start >= prev.start + prev.length) selected += hit
         }
-        require(selected.isNotEmpty()) { "해당 메뉴를 찾지 못했습니다. 화면 읽기로 메뉴를 확인해 주세요." }
+        require(selected.isNotEmpty()) { "해당 메뉴를 찾지 못했습니다. 메뉴를 다시 확인해 주세요." }
         var residue = text
         for (hit in selected.asReversed()) residue = residue.removeRange(hit.start, hit.start + hit.length)
         val takeout = Regex("포장|테이크아웃|가져갈|가지고갈|들고갈").containsMatchIn(residue)

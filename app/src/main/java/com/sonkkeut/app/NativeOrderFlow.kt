@@ -88,7 +88,7 @@ class NativeOrderFlow {
                 usable.firstOrNull { it.kind == "menu" && isItem(it) }?.let { return choose(it,"menu",mapOf("screen_type" to "option")) }
                 val move = usable.firstOrNull { it.kind == "tab" && NativeOrderParser.normalize(it.text) !in visited } ?: find("다음페이지|다음|더보기")
                 if (move != null && visited.size < 4) { visited += NativeOrderParser.normalize(move.text); return choose(move,"navigate",mapOf("changed" to true)) }
-                enter("SE", "${item.menu}를 찾지 못했습니다. 화면 읽기로 메뉴를 확인해 주세요.")
+                enter("SE", "${item.menu}를 찾지 못했습니다. 메뉴를 다시 확인해 주세요.")
             }
             "option" -> {
                 if (usable.none(::isItem)) { enter("SE","다른 메뉴의 옵션 화면입니다. 뒤로 돌아가 주문 메뉴를 확인해 주세요."); return null }
@@ -101,7 +101,7 @@ class NativeOrderFlow {
             }
             "cart" -> return choose(find("계속주문|메뉴로|추가주문|더주문|뒤로"),"navigate",mapOf("screen_type" to "menu"))
             "start" -> return choose(find("주문시작|시작하기"),"navigate",mapOf("screen_type" to "menu"))
-            else -> enter("SE","화면 종류를 확실히 알 수 없습니다. 화면 읽기를 사용하거나 다시 확인해 주세요.")
+            else -> enter("SE","화면 종류를 확실히 알 수 없습니다. 화면 다시 확인을 눌러 주세요.")
         }
         return null
     }

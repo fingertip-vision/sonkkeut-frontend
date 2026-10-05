@@ -13,18 +13,21 @@ import androidx.compose.ui.unit.dp
 
 /** Preserves the selected font size; long orders use pages rather than scrolling or truncation. */
 @Composable
-internal fun NativeOrderConfirmation(order: NativeOrder, progress: String, modifier: Modifier = Modifier) {
+internal fun NativeOrderConfirmation(order: NativeOrder, progress: String, modifier: Modifier = Modifier, onClose: () -> Unit = {}) {
     val summary=order.confirmation()+" "+progress
-    var page by remember(summary) { mutableIntStateOf(0) }
+    var page by remember(order) { mutableIntStateOf(0) }
     val pageCount=remember(summary) { mutableIntStateOf(1) }
     val measurer=rememberTextMeasurer()
     val density=LocalDensity.current
     val style=MaterialTheme.typography.bodyLarge
-    Column(modifier.testTag("orderConfirmation"),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        Text("주문 확인",style=MaterialTheme.typography.titleMedium,modifier=Modifier.testTag("orderTitle"))
-        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).testTag("orderTextRegion")) {
+    Column(modifier.testTag("orderConfirmation").semantics { paneTitle="주문 확인" },verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+            Text("주문 확인",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f).testTag("orderTitle"))
+            TextButton(onClick=onClose) { Text("닫기") }
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("orderTextRegion")) {
             val width=with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
-            val height=with(density) { maxHeight.roundToPx() }.coerceAtLeast(1)
+            val height=with(density) { (maxHeight - 64.dp).roundToPx() }.coerceAtLeast(with(density) { (style.fontSize.toDp()*1.5f).roundToPx() })
             val pages=remember(summary,width,height,style,density.fontScale) {
                 val result=mutableListOf<String>()
                 var start=0
@@ -53,7 +56,8 @@ internal fun NativeOrderConfirmation(order: NativeOrder, progress: String, modif
             SideEffect { if(page!=current) page=current }
             SideEffect { pageCount.value=pages.size }
         }
-        Row(Modifier.fillMaxWidth().testTag("orderNavigation").heightIn(min=56.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        if(pageCount.value>1) Row(Modifier.fillMaxWidth().testTag("orderNavigation").heightIn(min=56.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("${page+1}/${pageCount.value}",modifier=Modifier.semantics { contentDescription="주문 내용 ${page+1}/${pageCount.value}쪽" })
             TextButton(onClick={page--},enabled=page>0,modifier=Modifier.weight(1f)) { Text("이전") }
             TextButton(onClick={page++},enabled=page<pageCount.value-1,modifier=Modifier.weight(1f)) { Text("다음") }
         }
