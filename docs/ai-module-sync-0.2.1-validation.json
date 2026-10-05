@@ -2,7 +2,7 @@
   "date": "2026-10-06",
   "branch": "develop_kotlin_ui_integration",
   "base_frontend_commit": "9371cd2876c380de90a30c8a7dfceaa8334fcddd",
-  "frontend_source": "base commit plus uncommitted working-tree changes",
+  "frontend_source": "committed application source; source file hashes recorded below",
   "ai_commit": "80d3dfcdaec24144334e1236319237bf44651154",
   "version_name": "0.2.1",
   "version_code": 11,
@@ -42,7 +42,7 @@
     "large system font shrinks camera and clips camera instruction",
     "light theme yellow menu contrast"
   ],
-  "published": false,
+  "published": true,
   "final_app_regression": {
     "passed": 6,
     "failed": 0,
@@ -72,5 +72,10 @@
     "app/src/main/java/com/sonkkeut/app/VisualGuidanceCore.kt": "9f006a90b83e7427cec0e1c146507dbcb93334ada6c489c666854ffb32f129f2",
     "app/src/main/java/com/sonkkeut/app/VisualTracking.kt": "73d0cf25dea0e25a32ac5a11f7ff2a49762730a347cea86d238fcf3b057ed3f9",
     "app/src/main/java/com/sonkkeut/app/VisualVerification.kt": "d3c10215596e272931e980d89fd2e0159925500e4c4480ff1c114e945de25db1"
-  }
+  },
+  "source_commit": "8b4bb32e5706d8836eef024229dd95c25da4866c",
+  "release_urls": [
+    "https://github.com/fingertip-vision/sonkkeut-frontend/releases/tag/kotlin-ui-ai-0.2.1-20261006",
+    "https://github.com/hy2oni/sonkkeut-frontend/releases/tag/kotlin-ui-ai-0.2.1-20261006"
+  ]
 }

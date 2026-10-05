@@ -24,4 +24,6 @@
 
 실제 키오스크의 작은 글자·한국어 마이크·초광각·시각장애인 사용성·전체 주문 성공률은 미검증이다. 기존 큰 글자에서 카메라 축소/문구 잘림과 밝은 테마 대비 문제는 요청대로 수정하지 않고 기록만 유지했다.
 
-이번 작업은 로컬 동기화·프론트 연결·재빌드까지이며 커밋·푸시·공개 릴리스는 수행하지 않았다. 기존 공개 APK는 0.2.0이다.
+2026-10-06 코드 커밋 `8b4bb32e5706d8836eef024229dd95c25da4866c`를 포크와 원본의 `develop_kotlin_ui_integration`에 푸시했다. 다른 브랜치와 병합하지 않았다.
+
+0.2.1 개발 APK 배포: [원본 릴리스](https://github.com/fingertip-vision/sonkkeut-frontend/releases/tag/kotlin-ui-ai-0.2.1-20261006) · [포크 릴리스](https://github.com/hy2oni/sonkkeut-frontend/releases/tag/kotlin-ui-ai-0.2.1-20261006). 릴리스 태그는 APK 코드 커밋을 가리키며, 이후 문서 커밋은 배포 상태와 링크만 최신화한다.
