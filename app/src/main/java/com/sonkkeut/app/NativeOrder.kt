@@ -18,7 +18,7 @@ object NativeOrderParser {
             .replace(Regex("주시겠어요|주문할게요|할게요|줘요|부탁드려요"), "주세요")
         require(text.isNotBlank()) { "주문을 말씀해 주세요." }
         data class Hit(val item: MenuDocument, val start: Int, val length: Int)
-        val hits = menu.flatMap { item -> (listOf(item.name) + item.aliases).map(::normalize).filter { it.isNotEmpty() }.distinct().flatMap { name ->
+        val hits = NativeMenuDocuments.canonicalAliases(menu).flatMap { item -> (listOf(item.name) + item.aliases).map(::normalize).filter { it.isNotEmpty() }.distinct().flatMap { name ->
             val found = mutableListOf<Hit>(); var start = text.indexOf(name)
             while (start >= 0) { found += Hit(item, start, name.length); start = text.indexOf(name, start + name.length) }; found
         } }.sortedWith(compareBy<Hit> { it.start }.thenByDescending { it.length })

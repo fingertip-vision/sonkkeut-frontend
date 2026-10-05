@@ -150,7 +150,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { connectionMessage=e.message ?: "주소와 코드를 확인해 주세요." }
     }
     private fun applyMenu(result: NativeMenu) {
-        menu=result.items; menuVersion=result.version; storeName=result.store
+        menu=NativeMenuDocuments.canonicalAliases(result.items); menuVersion=result.version; storeName=result.store
         whisper.setMenuContext(menu.map { it.name })
         val aliases=menu.flatMap { m -> (listOf(m.name)+m.aliases).map { it to m.name } }.groupBy { it.first }
             .filterValues { matches -> matches.map { it.second }.distinct().size==1 }.mapValues { it.value.first().second }
@@ -319,8 +319,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                 val result=if (fromSpeech) withContext(Dispatchers.IO) {
                     val payload=JSONArray(menu.map { m -> JSONObject().put("name",m.name).put("aliases",JSONArray(m.aliases)).put("sold_out",m.soldOut).put("category",m.category) })
                     val stored=JSONArray(database.catalog(JSONArray(listOf(server,storeCode,menuVersion)).toString(),payload.toString()))
-                    val docs=(0 until stored.length()).map { i -> val m=stored.getJSONObject(i); val a=m.getJSONArray("aliases")
-                        MenuDocument(m.getString("name"),(0 until a.length()).map { a.getString(it) },m.getBoolean("sold_out"),m.optString("category")) }
+                    val docs=NativeMenuDocuments.restoreCatalog(stored,menu)
                     MenuSpeechIndex(docs).correct(text)
                 } else null
                 if (token!=speechGeneration) return@launch
