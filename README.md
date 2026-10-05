@@ -4,9 +4,13 @@
 
 AWS 서버는 팀의 기존 GitHub Actions → ECR → EC2 SSM 경로로 배포합니다. Cloudflare quick tunnel을 통해 HTTPS로 공개하므로 터널 컨테이너 재시작 시 주소가 바뀔 수 있습니다. 새 주소는 백엔드 Actions 배포 요약에서 확인하고 앱의 서버 설정에서 변경할 수 있습니다. 고정 주소 운영에는 별도의 도메인·고정 터널 설정이 필요합니다.
 
+## 카메라 시작 오류 수정 (v0.1.3)
+
+이전 v0.1.2에서 시작 버튼을 누르면 Frame Processor Error: Value is undefined, expected an Object로 앱이 종료되는 현상을 배포 APK에서 재현했습니다. VisionCamera 4.6.4의 플러그인 연결이 두 번째 인자를 객체로 변환하므로, 회전값이 없을 때 undefined를 전달하는 대신 인자를 생략하도록 AI SDK 0.1.2를 수정했습니다. 회전값 0·90도 전달은 유지합니다. 앱 Jest 회귀 검사 27개·TypeScript·ESLint와 배포 APK의 카메라 시작·일시 정지·재개 검증을 수행했습니다. S26 Ultra 실물 검증은 사용자의 재설치 확인이 필요합니다.
+
 ## 지금 확인하기
 
-휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.2-aws-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.2-aws-20261005/aws-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
+휴대폰에서 [APK 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.3-camera-fix-20261005/sonkkeut-aws.apk)를 열어 직접 설치할 수 있습니다. 이 개발 시연 앱은 첫 음성 모델 설치 중 약 1GB의 여유 공간이 필요합니다. [APK 검증 기록](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.1.3-camera-fix-20261005/camera-fix-apk-validation.json)에서 크기·SHA-256·포함 모델을 확인할 수 있습니다.
 
 휴대폰 없이 [상세 시뮬레이션](https://amazing-manually-transcript-est.trycloudflare.com/simulation)을 열 수 있습니다. 주문 3종, 손끝 자동·수동 이동, 신뢰도 조절, 품절·잘못 누름·화면 변화 없음·손 유실 복구를 확인합니다. 웹은 가상 좌표·모의 인식 결과를 사용하며 카메라나 실제 OCR·음성 모델을 실행하지 않습니다. 현재 PC의 전체 사용법은 `outputs/LOCAL_GUIDE.md`에 있습니다.
 
