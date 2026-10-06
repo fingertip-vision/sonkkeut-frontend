@@ -1,7 +1,7 @@
 package com.sonkkeut.app
 
 enum class DialogState { IDLE, PROMPTING, LISTENING, VERIFYING, RETRY_VOICE_CAPTURE, WAITING_SCREEN, FALLBACK, STOPPED }
-enum class VoiceSlot { CATEGORY, MENU, QUANTITY, DINE, TEMPERATURE, SIZE, RECOMMENDATION, EXACT_SEARCH, SCAN_CONTROL, NAVIGATION, CHECKOUT, DRAFT, DRAFT_CONFIRM, EXTRA_OPTION, MENU_CANDIDATE, SCREEN_MENU_CONFIRM }
+enum class VoiceSlot { CATEGORY, MENU, QUANTITY, DINE, TEMPERATURE, SIZE, RECOMMENDATION, EXACT_SEARCH, SCAN_CONTROL, NAVIGATION, CHECKOUT, DRAFT, DRAFT_CONFIRM, EXTRA_OPTION, MENU_CANDIDATE, SCREEN_MENU_CONFIRM, VISIBLE_OPTION }
 data class SpeechEvidence(val probability: Double?=null,val decoderScore: Double?=null,val noSpeech: Double=0.0) {
     // These are conservative provider-specific heuristics, not calibrated accuracy probabilities.
     fun strong() = noSpeech<.2 && (probability?.let { it.isFinite() && it>=.9 && it<=1 } ?: (decoderScore?.let { it.isFinite() && it>=-.15 && it<=0 } ?: false))

@@ -128,33 +128,39 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             }
             "menu" -> NativePage("메뉴·설정",{go("home")}) {
                 Text(model.connectionMessage,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
-                NativeButton("음성만으로 단계별 주문",enabled=model.ready && model.menu.isNotEmpty()) { conversationPermissions.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)) }
+                NativeButton("음성만으로 단계별 주문",enabled=model.ready && (model.screenMenuMode || model.menu.isNotEmpty())) { conversationPermissions.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)) }
                 NativeButton("음성·직접 입력 주문") { go("order") }
                 NativeButton("화면 읽기·버튼 선택") { go("screen") }
                 NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
                 NativeButton("화면·카메라·음성 설정") { go("accessibility") }
+                NativeButton("새 키오스크 시작 · 이전 목록 지우기") { model.newKiosk() }
                 NativeButton("서버·매장 설정") { go("connection") }
                 NativeButton("메뉴 인식 진단") { go("matching") }
-                NativeButton("이 매장 메뉴 검색 정보") { go("knowledge") }
+                NativeButton("이 매장 메뉴 검색 정보",enabled=!model.screenMenuMode) { go("knowledge") }
                 NativeButton("결제 완료·주문 번호 읽기",enabled=model.ready && cameraGranted) { model.startReceiptReading() }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     Text("익명 사용 통계 전송",modifier=Modifier.weight(1f))
-                    Switch(model.usageConsent,{model.changeUsageConsent(it)},modifier=Modifier.semantics { contentDescription="익명 사용 통계 전송" })
+                    Switch(model.usageConsent,{model.changeUsageConsent(it)},enabled=!model.screenMenuMode,modifier=Modifier.semantics { contentDescription="익명 사용 통계 전송" })
                 }
-                Text("동의한 경우 안내 결과만 전송합니다. 영상·음성·주문 문장은 전송하지 않습니다.",style=MaterialTheme.typography.bodyMedium)
+                Text(if(model.screenMenuMode) "현장 모드에서는 사용 기록을 전송하지 않습니다." else "동의한 경우 안내 결과만 전송합니다. 영상·음성·주문 문장은 전송하지 않습니다.",style=MaterialTheme.typography.bodyMedium)
                 Text("Kotlin 앱 ${BuildConfig.VERSION_NAME} · 휴대폰에서 OCR·손끝·음성 추론",style=MaterialTheme.typography.bodyMedium)
             }
             "accessibility" -> AccessibilitySettings { go("menu") }
             "matching" -> NativePage("메뉴 인식 진단",{go("menu")}) {
                 Text("들은 문장: ${model.rawSpeech.ifBlank { "아직 없음" }}")
                 Text(model.matchingDiagnostic.ifBlank { "카메라로 주문 메뉴를 확인한 뒤 조회해 주세요." })
-                Text("인식 결과와 메뉴 DB를 비교한 기록입니다. 점수는 정확도 확률이 아닙니다. 영상과 음성을 서버로 전송하지 않습니다.")
+                Text("인식 결과와 현재 메뉴 목록을 비교한 기록입니다. 점수는 정확도 확률이 아닙니다. 영상과 음성을 서버로 전송하지 않습니다.")
             }
             "knowledge" -> NativeKnowledgePage(model) { go("menu") }
             "connection" -> NativePage("서버·매장 설정",{go("menu")}) {
                 var base by rememberSaveable { mutableStateOf(model.server) }
                 var code by rememberSaveable { mutableStateOf(model.storeCode) }
-                Text("인터넷 연결 시 자동으로 메뉴를 연결합니다. 연결이 끊기면 저장된 매장 메뉴를 사용합니다.")
+                Text("기본은 현장 화면 인식입니다. 등록되지 않은 매장에서도 카메라로 읽은 메뉴를 사용하며 매장 코드가 필요하지 않습니다.")
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    Text("현장 화면으로 메뉴 구성",modifier=Modifier.weight(1f))
+                    Switch(model.screenMenuMode,{model.useScreenMenus(it)},modifier=Modifier.semantics { contentDescription="현장 화면으로 메뉴 구성" })
+                }
+                Text("등록 매장 DB를 사용하려면 위 설정을 끄고 주소·코드를 저장하세요. 새 매장에서는 현장 인식을 사용하세요.")
                 OutlinedTextField(base,{base=it},label={Text("서버 HTTPS 주소")},modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(code,{code=it},label={Text("매장 코드")},modifier=Modifier.fillMaxWidth(),singleLine=true)
                 NativeButton("설정 저장·연결") { model.saveConnection(base,code) }
@@ -162,6 +168,11 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 model.menu.forEach { Text("${it.name} · ${it.price?.let { p -> "${p}원" } ?: "가격 미확인"}${if(it.soldOut) " · 품절" else ""}") }
             }
             "screen" -> NativePage("화면 읽기",{go("menu")}) {
+                if(model.screenMenuMode && model.order!=null && model.screen?.type=="option") {
+                    Text("옵션 버튼을 선택하면 주문을 유지하며 해당 선택으로 안내합니다. 필요한 선택을 마쳤을 때 완료를 눌러 주세요.")
+                    val current=model.screen!!
+                    NativeButton("현재 화면 옵션 선택 완료") { model.finishVisibleOptions(current) }
+                }
                 NativeButton("읽은 내용 음성 안내",enabled=model.screen!=null) { output.resumeOutput(); output.read(model.screen?.reading() ?: "아직 화면을 읽지 못했습니다.") }
                 Text(if(model.found) "읽은 버튼을 선택하면 손끝으로 위치를 안내합니다." else "메인 화면에서 키오스크를 인식한 뒤 확인해 주세요.")
                 model.screen?.elements?.forEach { element ->
@@ -170,7 +181,9 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             }
             "order" -> NativePage("주문하기",{go("menu")}) {
                 var text by rememberSaveable { mutableStateOf("") }
-                Text("예: 따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해 주세요.")
+                Text(if(model.screenMenuMode) "카메라로 읽은 메뉴 이름으로 주문해 주세요. 메뉴 목록은 이번 키오스크에서만 사용합니다." else "예: 따뜻한 아메리카노 두 잔하고 카페라떼 한 잔 포장해 주세요.")
+                if(model.screenMenuMode && model.menu.isEmpty()) NativeButton("카메라로 메뉴 먼저 읽기") { go("home"); model.start() }
+                model.menu.take(10).forEach { Text("${it.name} · ${it.price?.let { p -> "${p}원" } ?: "가격 미확인"}${if(it.soldOut) " · 품절" else ""}") }
                 Text(model.speechStatus)
                 if(!model.modelInstalled) NativeButton("자체 음성 모델 받기 · 약 485MB",enabled=!model.speechBusy) { model.downloadSpeech() }
                 else NativeButton("자체 모델로 말하기",enabled=!model.speechBusy && model.menu.isNotEmpty()) {

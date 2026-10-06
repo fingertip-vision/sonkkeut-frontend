@@ -22,7 +22,7 @@ class InteractionDeviceTest {
     private fun replay(block: (NativeAppModel)->Unit) {
         lateinit var model: NativeAppModel
         val store=ViewModelStore()
-        ui { model=NativeAppModel(instrumentation.targetContext.applicationContext as Application); store.put("test",model) }
+        ui { model=NativeAppModel(instrumentation.targetContext.applicationContext as Application); model.useScreenMenus(false); store.put("test",model) }
         try {
             val deadline=SystemClock.elapsedRealtime()+60000
             while(SystemClock.elapsedRealtime()<deadline && (!model.ready || model.menu.isEmpty())) Thread.sleep(100)
@@ -35,6 +35,19 @@ class InteractionDeviceTest {
         // Inject a camera snapshot without changing production visibility or running real camera IO.
         NativeAppModel::class.java.getDeclaredMethod("setScreen",RecognizedScreen::class.java).apply { isAccessible=true }.invoke(model,screen)
     }
+    private fun fieldReplay(block: (NativeAppModel)->Unit) {
+        val context=instrumentation.targetContext.applicationContext as Application
+        context.getSharedPreferences("native_app",0).edit().putBoolean("screenMenuMode",true).apply()
+        lateinit var model: NativeAppModel; val store=ViewModelStore()
+        ui { model=NativeAppModel(context); store.put("field",model); model.saveConnection("https://unregistered-store.invalid","XXXXXX") }
+        try {
+            val deadline=SystemClock.elapsedRealtime()+60000
+            while(SystemClock.elapsedRealtime()<deadline && !model.ready) Thread.sleep(100)
+            assertTrue(model.ready); ui { block(model) }
+        } finally { ui { store.clear() }; context.getSharedPreferences("native_app",0).edit().remove("server").remove("storeCode").apply() }
+    }
+    private fun fieldScreen(frame: Int,name: String="돈코츠라멘")=RecognizedScreen("menu",frame,listOf(RecognizedElement("physical-button","menu",name,listOf(.1,.1,.5,.3),true,8500)),0,null,null)
+    private fun observe(model: NativeAppModel,screen: RecognizedScreen) { injectCurrentScreen(model,screen); model.observeMenus(screen); model.conversation.onScreen(screen) }
     private fun completeAck(model: NativeAppModel) { val turn=model.dialogTurn!!; assertNotNull(turn.accepted); model.dialogPromptCompleted(turn.generation,true) }
     private fun finishDraft(model: NativeAppModel) {
         say(model,"주문 시작"); completeAck(model)
@@ -156,5 +169,58 @@ class InteractionDeviceTest {
         completeAck(model)
         assertTrue(model.conversation.closeup); assertTrue(model.orderFlow.paused); assertNull(model.orderFlow.action)
         assertEquals(ScreenMenuStatus.CONFIRM,model.screenMenus.resolve(menu.name,menu.id,model.screen!!).status)
+    }
+    @Test fun unregisteredStoreBuildsOrderFromScreenWithoutFetchingCatalog() = fieldReplay { model ->
+        assertTrue(model.screenMenuMode); assertTrue(model.menu.isEmpty()); assertTrue(model.connectionMessage.startsWith("현장"))
+        observe(model,fieldScreen(1)); assertTrue(model.menu.isEmpty())
+        observe(model,fieldScreen(2)); assertEquals("돈코츠라멘",model.menu.single().name)
+        val order=NativeOrderParser.parse("돈코츠라멘 한 개",model.menu)
+        model.confirmStepOrder(order)
+        assertEquals("physical-button",model.orderFlow.accept(fieldScreen(3))!!.target.id)
+    }
+    @Test fun newKioskCannotReusePreviousVisitIdentityOrOrder() = fieldReplay { model ->
+        observe(model,fieldScreen(1)); observe(model,fieldScreen(2)); val oldId=model.menu.single().id
+        model.confirmStepOrder(NativeOrderParser.parse("돈코츠라멘 한 개",model.menu)); model.newKiosk()
+        assertNull(model.order); assertNull(model.screen); assertTrue(model.menu.isEmpty())
+        observe(model,fieldScreen(1)); observe(model,fieldScreen(2)); assertNotEquals(oldId,model.menu.single().id)
+    }
+    @Test fun unregisteredVoiceReadsObservedMenuAndAcceptsItsNumber() = fieldReplay { model ->
+        model.conversation.begin(); observe(model,fieldScreen(1)); assertNull(model.dialogTurn)
+        observe(model,fieldScreen(2)); assertEquals(VoiceSlot.MENU,model.conversation.dialog.slot)
+        assertTrue(model.dialogTurn!!.prompt.contains("1번 돈코츠라멘"))
+        say(model,"1번"); say(model,"네"); completeAck(model)
+        assertEquals(VoiceSlot.QUANTITY,model.conversation.dialog.slot); assertNull(model.order)
+    }
+    @Test fun unseenGoalCanBeDiscoveredOnAnotherPage() = fieldReplay { model ->
+        model.conversation.begin(); observe(model,fieldScreen(1)); observe(model,fieldScreen(2))
+        say(model,"치즈버거"); say(model,"네"); completeAck(model)
+        observe(model,fieldScreen(3)); assertEquals(VoiceSlot.NAVIGATION,model.conversation.dialog.slot)
+        observe(model,fieldScreen(4,"치즈버거")); observe(model,fieldScreen(5,"치즈버거"))
+        assertEquals(VoiceSlot.QUANTITY,model.conversation.dialog.slot)
+        assertTrue(model.dialogTurn!!.prompt.contains("치즈버거")); assertNull(model.order)
+    }
+    @Test fun unregisteredUnknownOptionNeedsSelectionAndCompletionBeforeAdd() = fieldReplay { model ->
+        model.conversation.begin(); observe(model,fieldScreen(1)); observe(model,fieldScreen(2))
+        model.confirmStepOrder(NativeOrderParser.parse("돈코츠라멘 한 개",model.menu))
+        val options=fieldScreen(10).copy(type="option",elements=fieldScreen(10).elements+
+            RecognizedElement("firm","button","면단단하게",listOf(.1,.4,.5,.5),true)+
+            RecognizedElement("add","button","담기",listOf(.1,.6,.5,.7),true))
+        observe(model,options); assertEquals(VoiceSlot.VISIBLE_OPTION,model.conversation.dialog.slot)
+        assertNull(model.orderFlow.action)
+        say(model,"1번"); say(model,"네"); completeAck(model)
+        assertEquals("면단단하게",model.order!!.items.single().extras.values.single().label)
+        val action=model.orderFlow.accept(options.copy(keyframe=11))!!; assertEquals("option",action.role)
+        model.orderFlow.press(); model.orderFlow.verdict("success","selected","선택됨")
+        observe(model,options.copy(keyframe=12)); assertEquals(VoiceSlot.VISIBLE_OPTION,model.conversation.dialog.slot)
+        say(model,"선택완료"); say(model,"네"); completeAck(model)
+        assertEquals("add",model.orderFlow.accept(options.copy(keyframe=13))!!.role)
+    }
+    @Test fun conceptQueryRequiresObservedCandidateSelection() = fieldReplay { model ->
+        model.conversation.begin(); observe(model,fieldScreen(1,"까르보나라")); observe(model,fieldScreen(2,"까르보나라"))
+        say(model,"크림파스타"); say(model,"네"); completeAck(model)
+        assertEquals(VoiceSlot.MENU_CANDIDATE,model.conversation.dialog.slot); assertNull(model.order)
+        assertTrue(model.dialogTurn!!.prompt.contains("까르보나라"))
+        say(model,"1번"); say(model,"네"); completeAck(model)
+        assertEquals(VoiceSlot.QUANTITY,model.conversation.dialog.slot); assertNull(model.order)
     }
 }

@@ -2,7 +2,7 @@ package com.sonkkeut.app
 import kr.sonkkeut.android.ScreenMenuStatus
 
 /** Keeps explicit confirmation and the original duplicate-add/cart verification policy. */
-class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
+class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks(),val fieldMode: Boolean=false) {
     var state = "S0"; private set
     var order: NativeOrder? = null; private set
     var screen: RecognizedScreen? = null; private set
@@ -14,6 +14,11 @@ class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
     private var remaining = mutableListOf<Int>()
     private val configured = mutableSetOf<String>()
     private val visited = mutableSetOf<String>()
+    private var unclassifiedApproved=false
+    private var optionLayout=""
+    private fun optionSignature(screen: RecognizedScreen)=screen.elements.filter { it.readable }.joinToString("|") { it.kind+":"+it.text }
+    fun approveVisibleOptions(screen: RecognizedScreen) { optionLayout=optionSignature(screen); unclassifiedApproved=true }
+    fun visibleOptionsApproved(screen: RecognizedScreen)=unclassifiedApproved && optionLayout==optionSignature(screen)
     private data class PendingAdd(val item: Int, val count: Int?, val keyframe: Int)
     private var pending: PendingAdd? = null
     fun currentItem() = order?.items?.getOrNull(remaining.indexOfFirst { it>0 })
@@ -35,7 +40,7 @@ class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
     private fun enter(next: String, text: String) { state = next; message = text; if (next in listOf("SE","S6")) action = null }
     fun submit(value: NativeOrder) {
         order = value; remaining = value.items.map { it.qty }.toMutableList(); confirmed = false; action = null
-        pending = null; configured.clear(); visited.clear(); enter("S3", value.confirmation())
+        pending = null; configured.clear(); visited.clear(); unclassifiedApproved=false; optionLayout=""; enter("S3", value.confirmation())
     }
     fun confirm(): NativeAction? { if (state != "S3" || paused) return null; confirmed = true; return plan() }
     fun accept(value: RecognizedScreen): NativeAction? {
@@ -56,7 +61,7 @@ class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
     }
     private fun complete(index: Int) {
         if (index in remaining.indices && remaining[index] > 0) remaining[index]--
-        pending = null; configured.clear(); visited.clear()
+        pending = null; configured.clear(); visited.clear(); unclassifiedApproved=false; optionLayout=""
     }
     fun verdict(result: String, reason: String, text: String) {
         if (paused || state != "S5") return
@@ -79,7 +84,7 @@ class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
         if (current.type == "payment") { enter(if (remaining.any { it > 0 }) "SE" else "S6", if (remaining.any { it > 0 }) "남은 주문이 있습니다. 주문 내역을 확인해 주세요." else "결제 화면입니다. 안내를 마칩니다."); return null }
         val usable = current.elements.filter { it.readable && it.kind in listOf("tab","menu","button","back") && it.text.isNotBlank()
             && it.box.size == 4 && it.box.all { p -> p.isFinite() && p in 0.0..1.0 } && it.box[2] > it.box[0] && it.box[3] > it.box[1] }
-        fun find(pattern: String) = usable.firstOrNull { Regex(pattern).containsMatchIn(NativeOrderParser.normalize(it.text)) }
+        fun find(pattern: String) = usable.singleOrNull { Regex(pattern).containsMatchIn(NativeOrderParser.normalize(it.text)) }
         fun choose(target: RecognizedElement?, role: String, expect: Map<String, Any?>, text: String? = null, value: String? = null): NativeAction? {
             if (target == null) { enter("SE", "버튼을 확실하게 읽지 못했습니다. 각도를 바꾸고 다시 확인해 주세요."); return null }
             val next = NativeAction(target, expect, role, text ?: "${target.text} 버튼으로 안내합니다", value)
@@ -118,10 +123,15 @@ class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
             }
             "option" -> {
                 if (identity.status!=ScreenMenuStatus.FOUND) { enter("SE","주문 메뉴의 옵션 화면인지 확인하지 못했습니다. 뒤로 돌아가 확인해 주세요."); return null }
+                val layout=optionSignature(current)
+                if(optionLayout!=layout) { optionLayout=layout; unclassifiedApproved=false }
                 for (value in listOfNotNull(item.temperature,item.size)+item.extras.values.map { it.label }) {
                     val target = find(when(value) { "hot" -> "^(hot|핫|따뜻한|따뜻하게)$"; "ice" -> "^(ice|iced|아이스|차갑게)$"; else -> "^${Regex.escape(NativeOrderParser.normalize(value))}$" })
                     if (target != null && current.selected?.contains(target.id) == true) configured += value
                     else if (target == null || current.selected != null || value !in configured) return choose(target,"option",mapOf("selected" to target?.id,"changed" to true),value=value)
+                }
+                if(fieldMode && !unclassifiedApproved && ScreenOptions.unclassified(current,identity.candidate?.regionId).isNotEmpty()) {
+                    enter("SE","화면의 추가 선택을 확인해 주세요. 음성 주문이나 화면 읽기로 옵션을 선택한 뒤 완료를 확인해야 담기 안내를 시작합니다."); return null
                 }
                 return choose(find("^(담기|장바구니담기|장바구니에담기|추가하기)$"),"add",mapOf("screen_type_not" to "option","cart_delta" to 1,"success_speak" to "담겼습니다"))
             }

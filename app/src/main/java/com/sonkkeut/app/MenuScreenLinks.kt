@@ -12,13 +12,13 @@ class MenuScreenLinks {
         if(catalog!=documents) { catalog=documents.toList(); resolver=ScreenMenuResolver(documents); approved=null }
     }
     fun reset() { approved=null; diagnostic="화면 매칭 확인을 초기화했습니다." }
-    fun signature(screen: RecognizedScreen) = screen.type + ":" + screen.elements.joinToString("|") { "${it.id}:${it.kind}:${it.text}:${it.box}:${it.readable}" }
+    fun signature(screen: RecognizedScreen) = screen.type + ":" + screen.elements.joinToString("|") { "${it.id}:${it.kind}:${it.text}:${it.box}:${it.readable}:${it.price}:${it.soldOut}" }
     private fun token(key: String,screen: RecognizedScreen,region: String) = key+":"+region+":"+signature(screen)
     fun resolve(name: String,menuId: String,screen: RecognizedScreen): ScreenMenuResolution {
         val docs=catalog ?: listOf(MenuDocument(name,id=menuId)) // unit-test / standalone flow compatibility
         val target=if(menuId.isNotBlank()) docs.singleOrNull { ScreenMenuResolver.key(it)==menuId }
             else docs.singleOrNull { ScreenMenuResolver.normalize(it.name)==ScreenMenuResolver.normalize(name) }
-        if(target==null) { approved=null; diagnostic="매장 DB에서 주문 메뉴를 확인하지 못했습니다: $name"; return ScreenMenuResolution(ScreenMenuStatus.MISSING) }
+        if(target==null) { approved=null; diagnostic="현재 메뉴 목록에서 주문 메뉴를 확인하지 못했습니다: $name"; return ScreenMenuResolution(ScreenMenuStatus.MISSING) }
         val key=ScreenMenuResolver.key(target)
         val result=(resolver ?: ScreenMenuResolver(docs)).resolve(key,screen.elements.map { MenuTextRegion(it.id,it.kind,it.text,it.box,it.readable) })
         val candidate=result.candidate

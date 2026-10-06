@@ -1,4 +1,6 @@
-# 손끝길 · Kotlin Android 앱 0.2.4
+# 손끝길 · Kotlin Android 앱 0.2.5
+
+0.2.5의 기본 모드는 **현장 화면 인식**입니다. 매장 코드 없이 두 프레임에서 확인한 메뉴로 방문별 목록을 만들고 음성 주문·탭/페이지 탐색·옵션 확인을 연결합니다. 새 키오스크에서는 이전 목록과 주문을 초기화합니다. 등록 DB는 선택해서 쓰는 보조 경로입니다. [사용법·검증 범위·한계](docs/field-kiosk-mode.md)를 확인하세요. 모든 업체의 전 기능을 보장한 상태는 아니며 실제 여러 키오스크의 검증이 필요합니다.
 
 0.2.4는 음성으로 확인한 주문과 OCR 메뉴·옵션 화면을 매장별 메뉴 ID로 연결합니다. 등록 별칭은 같은 상품으로 찾고, 한 글자 OCR 손상은 음성/화면 확인을 거칩니다. 후보나 위치가 여러 개면 안내를 보류합니다. [메뉴 연결 구조·진단·한계](docs/menu-screen-matching.md)를 확인하세요. 별도 AI 서버나 LLM은 필요하지 않습니다.
 
@@ -6,12 +8,12 @@
 
 0.2.2에서 추가한 여러 메뉴의 음성 주문 목록, 확인 후 수량 변경·삭제·되돌리기, 화면에서 읽은 당도·얼음·샷 옵션, 최대 3개 메뉴 후보 선택, 항상 음성 확인 설정을 유지합니다. [사용법과 남은 범위](docs/order-improvements.md)를 확인하세요.
 
-현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델, 매장별 SQLite 메뉴 보정, AWS 자동 연결을 유지합니다.
+현재 기본 앱은 Kotlin + Jetpack Compose + CameraX로 구현했습니다. 화면, 음성 결과, 주문 확인과 안내 흐름을 Android에서 직접 실행하며 React Native와 JavaScript 실행 환경을 포함하지 않습니다. 기존 영상·OCR·손끝·Whisper 모델을 유지하고, 등록 모드에서는 매장별 SQLite 메뉴 보정과 AWS 자동 연결을 사용합니다.
 
-- [Kotlin APK 0.2.4 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.4-menu-screen-matching/sonkkeut-kotlin-0.2.4.apk) · 기존 앱에 업데이트 설치
+- [Kotlin APK 0.2.5 다운로드](https://github.com/fingertip-vision/sonkkeut-frontend/releases/download/v0.2.5-field-kiosk/sonkkeut-kotlin-0.2.5.apk) · 0.2.4에 업데이트 설치
 - [Android Studio 실행과 네이티브 구조](docs/native-kotlin.md) · 이 레포의 루트 폴더를 Open
 - 프론트 `native/kotlin-20261005`, 형제 AI 레포 `codex/unified-ai-20261003` 필요
-- 단위 테스트 127개, 에뮬레이터 테스트 25개 통과. S26 Ultra 실물 사용성은 미검증
+- 단위 테스트 146개, 에뮬레이터 테스트 32개 통과. S26 Ultra 실물 사용성은 미검증
 
 0.2.1은 현재 키오스크 화면부터 시작하는 단계별 음성 확인·수정, 스크롤/탭 탐색 안내, 유사 메뉴 제안, 사용자 준비 후 근접 타일 OCR을 추가합니다. 메뉴·설정의 **음성만으로 단계별 주문**에서 시작하세요. [사용법·상태 흐름·검증 범위](docs/voice-interaction.md)를 확인하세요. 의미 추천은 소규모 음식 개념 사전의 코사인 벡터이며 신경망 임베딩·LLM은 포함하지 않습니다. Whisper 모델은 첫 사용 시 약 485MB를 별도로 다운로드합니다.
 

@@ -8,11 +8,13 @@ import androidx.test.rule.GrantPermissionRule
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Before
 
 class NativeAppTest {
     @get:Rule val permission: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private fun model()=ViewModelProvider(compose.activity)[NativeAppModel::class.java]
+    @Before fun useRegisteredFixture() { compose.runOnUiThread { model().useScreenMenus(false) } }
     @Test fun pureKotlinAppLoadsModelsAndAutomaticallyConnectsMenu() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         assertThrows(ClassNotFoundException::class.java) { Class.forName("com.facebook.react.ReactActivity") }
@@ -42,6 +44,8 @@ class NativeAppTest {
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
         assertEquals("S3",model().flowState)
         compose.onNodeWithText("네, 이 주문으로 안내 시작").performScrollTo().performClick()
+        compose.waitUntil(10000) { model().page=="home" }
+        compose.waitForIdle()
         compose.onNodeWithText("메뉴·설정").assertExists()
         assertFalse(model().paused)
     }
@@ -58,5 +62,13 @@ class NativeAppTest {
         compose.onNodeWithText("메뉴·설정").performClick()
         assertFalse(model().readingReceipt)
         compose.runOnUiThread { model().pause() }
+    }
+    @Test fun fieldModeAllowsVoiceEntryWithoutRegisteredOrObservedMenu() {
+        compose.waitUntil(60000) { model().ready }
+        compose.runOnUiThread { model().useScreenMenus(true) }
+        assertTrue(model().menu.isEmpty()); assertTrue(model().screenMenuMode)
+        compose.onNodeWithText("메뉴·설정").performClick()
+        compose.onNodeWithText("음성만으로 단계별 주문").assertIsEnabled()
+        compose.onNodeWithText("현장 화면 인식 · 메뉴 0개 · 매장 코드 불필요").assertExists()
     }
 }

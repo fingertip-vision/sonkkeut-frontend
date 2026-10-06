@@ -67,10 +67,38 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private var connectionGeneration = 0L
     private var connection: Job? = null
     private var menuVersion = -1
+    var screenMenuMode by mutableStateOf(storage.getBoolean("screenMenuMode",true)); private set
+    private val observedMenus=ObservedMenuCatalog()
+    internal val waitingForMenuRead get()=screenMenuMode && observedMenus.needsAnotherRead
+    internal fun observeMenus(current: RecognizedScreen) {
+        if(!screenMenuMode || order!=null) return
+        if(observedMenus.observe(current)) {
+            menu=observedMenus.documents; screenMenus.configure(menu); menuVersion=-1
+            whisper.setMenuContext(menu.map { it.name })
+        }
+        connectionMessage="현장 화면 인식 · 메뉴 ${menu.size}개 · 매장 코드 불필요"
+        if(menu.isEmpty() && !conversation.active) message="메뉴 화면 전체를 비춰 주세요. 두 번 읽은 메뉴로 주문할 수 있습니다."
+    }
+    fun useScreenMenus(value: Boolean) {
+        if(screenMenuMode==value) return
+        conversation.stop(); cancelSpeech(); connection?.cancel(); connectionGeneration++
+        screenMenuMode=value; storage.edit().putBoolean("screenMenuMode",value).apply()
+        resetOrder()
+        observedMenus.reset(); menu=emptyList(); screenMenus.configure(menu); screen=null; menuVersion=-1; storeName=""
+        commands.execute { SonkkeutEngine.setMenuAliases(emptyMap()) }
+        connect()
+    }
+    fun newKiosk() {
+        if(!screenMenuMode) useScreenMenus(true)
+        conversation.stop(); resetOrder(); cancelSpeech(); pause()
+        observedMenus.reset(); screen=null; found=false; frame=emptyMap(); rawSpeech=""; rag=null; matchingDiagnostic=""
+        if(screenMenuMode) { menu=emptyList(); screenMenus.configure(menu); whisper.setMenuContext(emptyList()); connect() }
+        open("home"); announce("새 키오스크입니다. 시작한 뒤 메뉴 화면 전체를 비춰 주세요.")
+    }
     internal val screenMenus=MenuScreenLinks()
     var matchingDiagnostic by mutableStateOf(""); private set
     var screenMatchPrompt by mutableStateOf<ScreenMatchPrompt?>(null); private set
-    private var flow = NativeOrderFlow(screenMenus)
+    private var flow = NativeOrderFlow(screenMenus,screenMenuMode)
     internal val orderFlow get()=flow
     val conversation=NativeConversation(this)
     var dialogTurn by mutableStateOf<DialogTurn?>(null); internal set
@@ -115,15 +143,17 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         commands.execute {
             try {
                 SonkkeutEngine.init(application,nativeFeedback=false)
+                if(screenMenuMode) SonkkeutEngine.setMenuAliases(emptyMap())
                 main.post { if (!closed) { ready=true; if (paused) message="키오스크를 비추고 손끝길을 시작해 주세요." } }
             } catch (e: Throwable) { main.post { if (!closed) message="AI 준비 실패: ${e.message}" } }
         }
         viewModelScope.launch { while (isActive) { delay(15000); if (menu.isEmpty() || connectionMessage.startsWith("오프라인") || connectionMessage.startsWith("연결 실패")) connect() } }
-        viewModelScope.launch { while(isActive) { delay(1000); conversation.tick(SystemClock.elapsedRealtime()); if(conversation.navigating || readingReceipt) forceFreshScreen()
+        viewModelScope.launch { while(isActive) { delay(1000); conversation.tick(SystemClock.elapsedRealtime()); if(conversation.navigating || readingReceipt || waitingForMenuRead || (screenMenuMode && !paused && menu.isEmpty())) forceFreshScreen()
             if(readingReceipt && SystemClock.elapsedRealtime()-receiptStarted>120000) { pause(); announce("완료 문구를 확인하지 못했습니다. 결제 성공 여부를 판단할 수 없습니다. 영수증이나 직원 안내를 확인해 주세요.") }
         } }
     }
     fun connect() {
+        if(screenMenuMode) { connectionMessage="현장 화면 인식 · 메뉴 ${menu.size}개 · 매장 코드 불필요"; return }
         connection?.cancel(); val token = ++connectionGeneration
         val base=server; val code=storeCode
         connection = viewModelScope.launch {
@@ -136,7 +166,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                     knowledge.enrich(base,code,(0 until stored.length()).map { i -> val m=stored.getJSONObject(i); val aliases=m.getJSONArray("aliases"); val original=source.getValue(m.getString("name"))
                         original.copy(aliases=(0 until aliases.length()).map { aliases.getString(it) },soldOut=m.getBoolean("sold_out"),category=m.optString("category")) })
                 }
-                if (token != connectionGeneration) return@launch
+                if (token != connectionGeneration || screenMenuMode) return@launch
                 if (menuVersion >= 0 && menuVersion != result.version && (order != null || conversation.active)) { conversation.stop(); resetOrder(); announce("메뉴가 변경됐습니다. 주문을 다시 확인해 주세요.") }
                 menu=snapshot; screenMenus.configure(menu); menuVersion=result.version; storeName=result.store
                 connectionMessage=if (result.offline) "오프라인 · 저장된 ${result.store} 메뉴" else "연결됨 · ${result.store}"
@@ -144,9 +174,9 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                 val aliases=menu.flatMap { m -> (listOf(m.name)+m.aliases).map { it to m.name } }.groupBy { it.first }
                     .filterValues { matches -> matches.map { it.second }.distinct().size == 1 }.mapValues { it.value.first().second }
                 commands.execute { SonkkeutEngine.setMenuAliases(aliases) }
-                if(usage.enabled) viewModelScope.launch { usage.enqueue(base) }
+                if(usage.enabled && !screenMenuMode) viewModelScope.launch { usage.enqueue(base) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (token==connectionGeneration) connectionMessage="연결 실패 · ${e.message ?: "인터넷 연결을 확인해 주세요."}" }
+            catch (e: Exception) { if (token==connectionGeneration && !screenMenuMode) connectionMessage="연결 실패 · ${e.message ?: "인터넷 연결을 확인해 주세요."}" }
         }
     }
     fun saveConnection(base: String, code: String) {
@@ -188,6 +218,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         }
         json.optJSONObject("structure")?.let { structure -> runCatching { RecognizedScreen.from(structure) }.onSuccess { current ->
             screen=current
+            if(found) observeMenus(current)
             conversation.onScreen(current)
             if(readingReceipt || paused) return
             if(conversation.active) flow.paused=conversation.blocking
@@ -252,10 +283,25 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     }
     fun guide(element: RecognizedElement) {
         if (!element.readable) { announce("현재 화면의 글자를 다시 확인해 주세요."); return }
+        if(screenMenuMode && order!=null && screen?.type=="option") {
+            val current=screen ?: return; val item=flow.currentItem() ?: return
+            val identity=screenMenus.resolve(item.menu,item.menuId,current)
+            val options=ScreenOptions.unclassified(current,identity.candidate?.regionId)+current.elements.filter { e ->
+                e.readable && e.kind=="button" && (ScreenOptions.groups(current).any { g -> g.choices.any { it.label==e.text } } ||
+                Regex("^(ice|아이스|차갑게|hot|핫|따뜻한|따뜻하게|스몰|미디엄|라지|톨|그란데|벤티|small|medium|large)$").matches(NativeOrderParser.normalize(e.text))) }
+            if(identity.status!=ScreenMenuStatus.FOUND || options.none { it.id==element.id } || options.count { NativeOrderParser.normalize(it.text)==NativeOrderParser.normalize(element.text) }!=1) { announce("주문 메뉴와 선택 가능한 옵션인지 먼저 확인해 주세요. 같은 이름이 여러 개면 위치 안내를 보류합니다."); return }
+            updateExtraChoice("직접선택:${element.id}",ExtraOption(element.text,element.price))
+            open("home"); start(); forceFreshScreen(); return
+        }
         resetOrder(); pendingManual=element.text to element.kind
         open("home"); start(); announce("현재 화면에서 ${element.text} 버튼을 다시 확인합니다.")
     }
     fun recoverScreen() { flow.recover(); lastTarget=null; commands.execute { SonkkeutEngine.clearTarget(); SonkkeutEngine.requestKeyframe() }; open("home"); start() }
+    fun finishVisibleOptions(expected: RecognizedScreen) {
+        val current=screen ?: return
+        if(!screenMenuMode || order==null || current.type!="option" || screenMenus.signature(current)!=screenMenus.signature(expected)) { announce("현재 옵션 화면을 다시 확인해 주세요."); return }
+        flow.approveVisibleOptions(current); flow.recover(); open("home"); start(); forceFreshScreen()
+    }
     fun submit(text: String, fromSpeech: Boolean=false) {
         conversation.stop()
         resetOrder()
@@ -264,13 +310,15 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         if (fromSpeech) rawSpeech=text else { rawSpeech=""; rag=null }
         viewModelScope.launch {
             try {
-                require(menu.isNotEmpty()) { "먼저 매장 메뉴를 연결해 주세요." }
+                require(menu.isNotEmpty()) { if(screenMenuMode) "먼저 카메라로 메뉴 화면을 읽어 주세요." else "먼저 매장 메뉴를 연결해 주세요." }
                 val result=if (fromSpeech) withContext(Dispatchers.IO) {
+                    if(screenMenuMode) MenuSpeechIndex(menu.toList()).correct(text) else {
                     val payload=JSONArray(menu.map { m -> JSONObject().put("name",m.name).put("aliases",JSONArray(m.aliases)).put("sold_out",m.soldOut).put("category",m.category) })
-                    val stored=JSONArray(database.catalog(JSONArray(listOf(server,storeCode,menuVersion)).toString(),payload.toString()))
+                    val stored=JSONArray(database.catalog(JSONArray(listOf(if(screenMenuMode) "observed:"+menu.firstOrNull()?.id else server,storeCode,menuVersion)).toString(),payload.toString()))
                     val docs=(0 until stored.length()).map { i -> val m=stored.getJSONObject(i); val a=m.getJSONArray("aliases")
                         MenuDocument(m.getString("name"),(0 until a.length()).map { a.getString(it) },m.getBoolean("sold_out"),m.optString("category")) }
                     MenuSpeechIndex(docs).correct(text)
+                    }
                 } else null
                 if (token!=speechGeneration) return@launch
                 rag=result
@@ -296,7 +344,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         applyAction(flow.confirm()); open("home"); start(); if (flow.action==null) announce(flow.message)
     }
     fun startConversation() {
-        if(!ready || menu.isEmpty()) { announce("AI와 매장 메뉴를 먼저 준비해 주세요."); return }
+        if(!ready || (!screenMenuMode && menu.isEmpty())) { announce("AI와 메뉴를 먼저 준비해 주세요."); return }
         if(!modelInstalled && !systemSpeechAvailable) { announce("자체 음성 모델을 받거나 기기 한국어 음성 인식을 준비해 주세요."); open("order"); return }
         conversation.stop(); resetOrder(); open("home"); start()
         if(modelInstalled && whisper.status()["ready"]!=true) {
@@ -333,6 +381,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         } else { speechProvider="system"; systemSpeech.listenScored(menu.map { it.name },{ text,score -> result(text,SpeechEvidence(probability=score)) },{ fail(it) }) }
     }
     private fun reportCompletion() {
+        if(screenMenuMode) return
         if(flow.state!="S6" || completionReported || usageEventId.isBlank()) return
         completionReported=true
         if(!usageConsent) return
@@ -349,7 +398,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
             flow.recover(); forceFreshScreen(); announce("확인한 메뉴의 위치를 다시 읽습니다.")
         } else { pause(); announce(if(yes) "화면이 바뀌었습니다. 다시 확인해 주세요." else "주문을 유지하고 안내를 중지했습니다.") }
     }
-    private fun resetOrder() { screenMenus.reset(); screenMatchPrompt=null; flow=NativeOrderFlow(screenMenus); order=null; lastTarget=null; pendingManual=null; completionReported=false; usageEventId=""; usageSteps.clear(); commands.execute { SonkkeutEngine.clearTarget() } }
+    private fun resetOrder() { screenMenus.reset(); screenMatchPrompt=null; flow=NativeOrderFlow(screenMenus,screenMenuMode); order=null; lastTarget=null; pendingManual=null; completionReported=false; usageEventId=""; usageSteps.clear(); commands.execute { SonkkeutEngine.clearTarget() } }
     fun refreshSpeechStatus() { val status=whisper.status(); modelInstalled=status["installed"]==true; if (!speechBusy) speechStatus=if(modelInstalled) "자체 Whisper v3 준비됨" else "자체 Whisper v3 다운로드 필요 · 약 485MB" }
     fun downloadSpeech() {
         if (speechBusy) return
