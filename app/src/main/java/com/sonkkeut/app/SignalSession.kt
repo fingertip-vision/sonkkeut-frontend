@@ -60,7 +60,9 @@ internal fun SignalSession(
     onRepeat: () -> Unit,
     camera: @Composable (Modifier) -> Unit,
     order: (@Composable () -> Unit)? = null,
-    controls: @Composable () -> Unit
+    controls: @Composable () -> Unit,
+    accessibilityMessage: String = message,
+    announceStatus: Boolean = true
 ) {
     val large=LocalDensity.current.fontScale>=1.6f
     val colors=MaterialTheme.colorScheme
@@ -84,7 +86,7 @@ internal fun SignalSession(
             }
             Column(Modifier.fillMaxWidth().padding(top=10.dp,bottom=8.dp).semantics { traversalIndex=2f },verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 // One existing status live region; the rapidly changing direction headline is deliberately not live.
-                NativeStatus(message)
+                NativeStatus(message,accessibilityMessage,announceStatus)
                 if(large) Column(Modifier.fillMaxWidth().testTag("homeActions"),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     SignalRepeatActions(Modifier.fillMaxWidth(),repeatEnabled,onRepeat)
                 } else Row(Modifier.fillMaxWidth().testTag("homeActions"),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -149,10 +151,10 @@ private fun SignalMark(state: SignalPresentation, modifier: Modifier) {
 }
 
 @Composable
-internal fun SignalOrderCard(order: NativeOrder, progress: String, onOpen: () -> Unit) {
+internal fun SignalOrderCard(order: NativeOrder, progress: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val large=LocalDensity.current.fontScale>=1.6f
     val summary=order.items.firstOrNull()?.menu.orEmpty()+if(order.items.size>1) " 외 ${order.items.size-1}종" else " · ${order.items.sumOf { it.qty }}개"
-    Surface(onClick=onOpen,modifier=Modifier.fillMaxWidth().testTag("signalOrderCard"),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceVariant,contentColor=MaterialTheme.colorScheme.onSurface) {
+    Surface(onClick=onOpen,modifier=modifier.fillMaxWidth().testTag("signalOrderCard"),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceVariant,contentColor=MaterialTheme.colorScheme.onSurface) {
         if(large) Column(Modifier.padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
             Text("주문 보기",style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.primary)
             Text(progress,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)

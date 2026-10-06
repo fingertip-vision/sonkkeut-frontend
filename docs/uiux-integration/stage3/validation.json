@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-06",
+  "branch": "develop_ui_update",
+  "startingCommit": "7855efa68a5aece8673ae3269b081546605d5118",
+  "productBase": "dc9fdc7118687074cd0c34db0ba87cf425e63fa6",
+  "targetBranch": "fingertip-vision/sonkkeut-frontend:develop_ui/ux_v2",
+  "release": {
+    "file": "artifacts/sonkkeut-0.3.0.apk",
+    "applicationId": "com.sonkkeut",
+    "versionName": "0.3.0",
+    "versionCode": 15,
+    "bytes": 69998844,
+    "sha256": "1d70382dad23f22592dce671b5ec3e2beb6b2a4af51129849e4216fd6f14883c",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "published": false
+  },
+  "sandbox": {
+    "file": "artifacts/sonkkeut-ui-update-stage3.apk",
+    "applicationId": "com.sonkkeut.uiupdate",
+    "versionName": "0.3.0-ui-stage3",
+    "versionCode": 15,
+    "bytes": 77091303,
+    "sha256": "70e6ac28c8bd936c965a22f73611308bd85df16f6d160737ff7eaca4ee851384"
+  },
+  "validation": {
+    "unitPassed": 106,
+    "instrumentationPassed": 25,
+    "failed": 0,
+    "skipped": 0,
+    "sandboxMaestroPassed": true,
+    "releaseMaestroPassed": true,
+    "updateFrom": "0.2.4 / 14",
+    "updateInstalled": true,
+    "settingsPreserved": [
+      "textSize=2",
+      "light=true"
+    ],
+    "permissionsPreserved": [
+      "CAMERA",
+      "RECORD_AUDIO"
+    ],
+    "firstInstallTimePreserved": true,
+    "installedHashesMatch": true,
+    "existingProductPreserved": true,
+    "existingProductSha256": "12e705610533f7121fb8a1530961c75d847876d88031c47ba468441911a37c3f"
+  },
+  "unverified": [
+    "Physical kiosk / fingertip accuracy and overlay alignment",
+    "Real Korean microphone / Whisper transcription",
+    "TalkBack spoken behavior and accessibility focus",
+    "Physical vibration and wide-angle lens",
+    "Previously downloaded voice model persistence on a physical phone"
+  ],
+  "gitActions": {
+    "committed": false,
+    "pushed": false,
+    "targetBranchCreated": false,
+    "prCreated": false,
+    "releasePublished": false
+  }
+}

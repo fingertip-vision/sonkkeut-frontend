@@ -17,7 +17,7 @@ internal object NativeStatusText {
 }
 
 @androidx.compose.runtime.Composable
-internal fun NativeStatus(message: String) {
+internal fun NativeStatus(message: String, accessibilityMessage: String = message, announce: Boolean = true) {
     val density=androidx.compose.ui.platform.LocalDensity.current
     val style=androidx.compose.material3.MaterialTheme.typography.titleMedium
     val measurer=androidx.compose.ui.text.rememberTextMeasurer()
@@ -31,8 +31,8 @@ internal fun NativeStatus(message: String) {
         }
         val text=if(measurer.measure(brief,style=style,constraints=androidx.compose.ui.unit.Constraints(maxWidth=width)).lineCount<=2) brief else fallback
         androidx.compose.material3.Text(text,style=style,modifier=androidx.compose.ui.Modifier.semantics {
-            liveRegion=androidx.compose.ui.semantics.LiveRegionMode.Polite
-            contentDescription=message
+            if(announce) liveRegion=androidx.compose.ui.semantics.LiveRegionMode.Polite
+            contentDescription=accessibilityMessage
         })
     }
 }

@@ -9,8 +9,8 @@ android {
         applicationId = "com.sonkkeut"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.2.4"
+        versionCode = 15
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -28,8 +28,8 @@ android {
             // Opt-in install target for integration QA; preserves the deployed app and its data.
             if (providers.gradleProperty("uiIntegrationSandbox").orNull == "true") {
                 applicationIdSuffix = ".uiupdate"
-                versionNameSuffix = "-ui-stage2"
-                manifestPlaceholders["debugAppLabel"] = "손끝길 통합 · 2차"
+                versionNameSuffix = "-ui-stage3"
+                manifestPlaceholders["debugAppLabel"] = "손끝길 통합 · 3차"
             } else manifestPlaceholders["debugAppLabel"] = "@string/app_name"
         }
     }

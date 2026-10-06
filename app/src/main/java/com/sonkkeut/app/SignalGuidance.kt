@@ -80,3 +80,7 @@ internal fun signalTargetBox(frame: Map<String,Any?>): List<Float>? {
 /** The footer must not keep displaying a previous move/press command after its evidence expires. */
 internal fun signalStatusMessage(s: SignalSnapshot, p: SignalPresentation, original: String): String =
     if(s.hasOrder && s.flow in listOf("S4","S5") && !s.paused && !s.recording && !s.busy && !s.editing) p.detail else original
+
+internal fun signalAccessibilityMessage(s: SignalSnapshot, p: SignalPresentation, original: String): String =
+    if(s.hasOrder && s.flow in listOf("S4","S5") && !s.paused && !s.recording && !s.busy && !s.editing)
+        p.title.replace('\n',' ')+". "+p.detail else original

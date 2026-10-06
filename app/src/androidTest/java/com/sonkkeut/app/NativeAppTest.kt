@@ -14,10 +14,6 @@ class NativeAppTest {
     @get:Rule(order=0) val permission: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)
     @get:Rule(order=1) val compose = createAndroidComposeRule<MainActivity>()
     private fun model()=ViewModelProvider(compose.activity)[NativeAppModel::class.java]
-    @After fun releaseNativeSessionBeforeNextTest() {
-        compose.activityRule.scenario.close()
-        awaitNativeEngineRelease()
-    }
     @Test fun pureKotlinAppLoadsModelsAndAutomaticallyConnectsMenu() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         assertThrows(ClassNotFoundException::class.java) { Class.forName("com.facebook.react.ReactActivity") }

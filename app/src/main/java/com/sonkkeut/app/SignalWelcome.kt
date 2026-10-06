@@ -48,6 +48,7 @@ internal data class WelcomeState(
     val permissionDenied: Boolean = false,
     val permissionSettingsRequired: Boolean = false
 ) {
+    val canRetry: Boolean get() = !ready && message.startsWith("AI 준비 실패")
     val status: String get() = when {
         !ready && message.startsWith("AI 준비 실패") -> message
         !ready -> "시작에 필요한 AI를 준비하고 있어요"
@@ -58,6 +59,7 @@ internal data class WelcomeState(
         else -> "시작할 준비가 됐어요"
     }
     val action: String get() = when {
+        canRetry -> "AI 다시 준비"
         permissionSettingsRequired && !cameraGranted -> "카메라 권한 설정"
         permissionDenied && !cameraGranted -> "카메라 권한 허용"
         else -> "손끝길 시작"
@@ -71,7 +73,8 @@ internal fun SignalWelcome(
     repeatEnabled: Boolean,
     onStart: () -> Unit,
     onSettings: () -> Unit,
-    onRepeat: () -> Unit
+    onRepeat: () -> Unit,
+    onRetry: (() -> Unit)? = null
 ) {
     val background = if (light) SignalPaper else SignalInk
     val foreground = if (light) SignalInk else SignalPaper
@@ -79,6 +82,7 @@ internal fun SignalWelcome(
     val accent = if (light) Color(0xFF5D4A06) else SignalGold
     val edge = if (light) Color(0xFFB8C5BC) else Color(0xFF36433F)
     val large = LocalDensity.current.fontScale >= 1.6f
+    val actionEnabled=state.ready || state.canRetry && onRetry!=null
     Surface(color = background, contentColor = foreground) {
         Column(Modifier.fillMaxSize().safeDrawingPadding().testTag("signalWelcome")
             .semantics { isTraversalGroup = true }) {
@@ -141,15 +145,15 @@ internal fun SignalWelcome(
                 SignalText(state.status, if (large) 14 else 16, muted,
                     Modifier.testTag("welcomeStatus").heightIn(max = if (large) 130.dp else 96.dp)
                         .verticalScroll(rememberScrollState()).semantics { liveRegion = LiveRegionMode.Polite })
-                Button(onClick = onStart, enabled = state.ready,
+                Button(onClick = { if(state.canRetry) onRetry?.invoke() else onStart() }, enabled = actionEnabled,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp).testTag("welcomeStart"),
                     shape = RoundedCornerShape(24.dp), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SignalGold, contentColor = SignalInk,
                         disabledContainerColor = if (light) Color(0xFFD8DFD9) else Color(0xFF36433F),
                         disabledContentColor = muted)) {
-                    SignalText(state.action, if (large) 20 else 24, if (state.ready) SignalInk else muted,
+                    SignalText(state.action, if (large) 20 else 24, if (actionEnabled) SignalInk else muted,
                         Modifier.weight(1f), bold = true)
-                    if (!large) SignalText("→", 30, if (state.ready) SignalInk else muted, Modifier.clearAndSetSemantics {})
+                    if (!large) SignalText("→", 30, if (actionEnabled) SignalInk else muted, Modifier.clearAndSetSemantics {})
                 }
                 if (large) Column(Modifier.fillMaxWidth()) {
                     SignalText("결제는 키오스크에서\n직접 진행해요", 12, muted, lineHeight = 17)

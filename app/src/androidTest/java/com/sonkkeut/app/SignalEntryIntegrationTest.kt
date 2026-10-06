@@ -16,10 +16,6 @@ class SignalEntryIntegrationTest {
     @get:Rule(order=0) val permission: GrantPermissionRule=GrantPermissionRule.grant(Manifest.permission.CAMERA)
     @get:Rule(order=1) val compose=createAndroidComposeRule<MainActivity>()
     private fun model()=ViewModelProvider(compose.activity)[NativeAppModel::class.java]
-    @After fun releaseNativeSessionBeforeNextTest() {
-        compose.activityRule.scenario.close()
-        awaitNativeEngineRelease()
-    }
 
     @Test fun actualStartConnectsCameraAndExitRestoresWelcome() {
         compose.waitUntil(60000) { model().ready }

@@ -20,9 +20,9 @@ internal fun NativeOrderConfirmation(order: NativeOrder, progress: String, modif
     val measurer=rememberTextMeasurer()
     val density=LocalDensity.current
     val style=MaterialTheme.typography.bodyLarge
-    Column(modifier.testTag("orderConfirmation").semantics { paneTitle="주문 확인" },verticalArrangement=Arrangement.spacedBy(4.dp)) {
+    Column(modifier.testTag("orderConfirmation").semantics { paneTitle="주문 확인"; isTraversalGroup=true; traversalIndex=-1f },verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-            Text("주문 확인",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f).testTag("orderTitle"))
+            Text("주문 확인",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f).testTag("orderTitle").semantics { heading() })
             TextButton(onClick=onClose) { Text("닫기") }
         }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f,fill=false).testTag("orderTextRegion")) {

@@ -29,7 +29,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private var completionReported = false
     var usageConsent by mutableStateOf(usage.enabled); private set
     fun changeUsageConsent(value: Boolean) { usage.consent(value); usageConsent=value }
-    private val commands = Executors.newSingleThreadExecutor()
+    private val commands = NativeEngineRuntime.queue.open()
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     private val cameraGeneration = AtomicLong()
@@ -67,6 +67,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     var page by mutableStateOf("home"); private set
     var paused by mutableStateOf(true); private set
     var ready by mutableStateOf(false); private set
+    var initializing by mutableStateOf(false); private set
     var message by mutableStateOf("손끝길 시작을 눌러 주세요."); private set
     var connectionMessage by mutableStateOf("매장 메뉴를 연결하고 있습니다."); private set
     var storeName by mutableStateOf(""); private set
@@ -122,13 +123,19 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         refreshSpeechStatus()
         runCatching { network.registerDefaultNetworkCallback(callback) }
         connect()
+        retryInitialization()
+        viewModelScope.launch { while (isActive) { delay(15000); if (menu.isEmpty() || connectionMessage.startsWith("오프라인") || connectionMessage.startsWith("연결 실패")) connect() } }
+    }
+    fun retryInitialization() {
+        if(closed || ready || initializing) return
+        initializing=true
+        message="AI를 준비하고 있습니다. 잠시 기다려 주세요."
         commands.execute {
             try {
-                SonkkeutEngine.init(application,nativeFeedback=false)
-                main.post { if (!closed) { ready=true; if (paused) message="키오스크를 비추고 손끝길을 시작해 주세요." } }
-            } catch (e: Throwable) { main.post { if (!closed) message="AI 준비 실패: ${e.message}" } }
+                SonkkeutEngine.init(getApplication(),nativeFeedback=false)
+                main.post { if (!closed) { initializing=false; ready=true; if (paused) message="키오스크를 비추고 손끝길을 시작해 주세요." } }
+            } catch (e: Throwable) { main.post { if (!closed) { initializing=false; message="AI 준비 실패: ${e.message}" } } }
         }
-        viewModelScope.launch { while (isActive) { delay(15000); if (menu.isEmpty() || connectionMessage.startsWith("오프라인") || connectionMessage.startsWith("연결 실패")) connect() } }
     }
     fun connect() {
         connection?.cancel(); val token = ++connectionGeneration
@@ -239,7 +246,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         if(!closed && detailMode && page=="home" && ready) { processDetail(image,rotation); return }
         if (closed || !running || paused || page!="home" || !ready || flow.state=="S6") return
         val token=cameraGeneration.get()
-        val result=SonkkeutEngine.processYuv(image,rotation) ?: return
+        val result=commands.read { SonkkeutEngine.processYuv(image,rotation) } ?: return
         main.post { if (!closed && !paused && page=="home" && cameraGeneration.get()==token) accept(result) }
     }
     private fun accept(value: Map<String,Any?>) {
@@ -420,7 +427,8 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     fun announce(text: String, press: Boolean=false) { message=text; if (announcement!=text || press) { announcement=text; pressAnnouncement=press; announcementNumber++; if(text.isNotBlank()) captions=(listOf(text)+captions.filter { it!=text }).take(5) } }
     override fun onCleared() {
         closed=true; detailGeneration.incrementAndGet(); speechGeneration++; connectionGeneration++; runCatching { network.unregisterNetworkCallback(callback) }
-        usage.close(); whisper.close(); database.close(); SonkkeutEngine.running=false; commands.execute { synchronized(scannerLock) { detailScanner?.close(); detailScanner=null }; SonkkeutEngine.release() }; commands.shutdown()
+        usage.close(); whisper.close(); database.close(); SonkkeutEngine.running=false
+        commands.close { synchronized(scannerLock) { detailScanner?.close(); detailScanner=null } }
         main.removeCallbacksAndMessages(null)
     }
     companion object { const val DEFAULT_SERVER="https://amazing-manually-transcript-est.trycloudflare.com" }
