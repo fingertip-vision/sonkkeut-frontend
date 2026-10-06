@@ -12,7 +12,9 @@
     "bytes": 69998844,
     "sha256": "1d70382dad23f22592dce671b5ec3e2beb6b2a4af51129849e4216fd6f14883c",
     "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
-    "published": false
+    "published": true,
+    "commit": "6e66ec232e556d70c2543e68593427500692eec5",
+    "url": "https://github.com/hy2oni/sonkkeut-frontend/releases/tag/develop-ui-0.3.0-20261006"
   },
   "sandbox": {
     "file": "artifacts/sonkkeut-ui-update-stage3.apk",
@@ -52,10 +54,12 @@
     "Previously downloaded voice model persistence on a physical phone"
   ],
   "gitActions": {
-    "committed": false,
-    "pushed": false,
-    "targetBranchCreated": false,
-    "prCreated": false,
-    "releasePublished": false
+    "committed": true,
+    "pushed": true,
+    "targetBranchCreated": true,
+    "prCreated": true,
+    "releasePublished": true,
+    "prUrl": "https://github.com/fingertip-vision/sonkkeut-frontend/pull/9",
+    "merged": false
   }
 }

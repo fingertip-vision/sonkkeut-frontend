@@ -19,4 +19,6 @@
 ## 병합 대상
 
 Head: `hy2oni:develop_ui_update` → Base: `fingertip-vision:develop_ui/ux_v2`.
-새 대상 브랜치는 기존 제품 기준 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`에서 생성합니다. 다른 브랜치에 병합하지 않습니다.
+새 대상 브랜치는 기존 제품 기준 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`에서 생성했습니다. 다른 브랜치에 병합하지 않습니다.
+
+[0.3.0 개발 APK 릴리스](https://github.com/hy2oni/sonkkeut-frontend/releases/tag/develop-ui-0.3.0-20261006)는 코드 커밋 `6e66ec232e556d70c2543e68593427500692eec5`를 가리킵니다. 배포 후 후속 커밋은 다운로드 링크·배포 상태 문서만 갱신합니다.

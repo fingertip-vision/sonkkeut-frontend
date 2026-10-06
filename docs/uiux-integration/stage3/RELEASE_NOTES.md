@@ -18,4 +18,4 @@
 
 단위 검사 106개, Android 15 계측 25개와 실제 설정·복귀 터치 검사를 통과했습니다. 실제 한국어 마이크 인식, 실물 키오스크 전체 주문, TalkBack 사용자 검증·물리 진동·카메라 좌표 정합성은 추가 확인이 필요합니다. 결제는 키오스크에서 직접 진행합니다.
 
-릴리스는 포크 `develop_ui_update`의 최종 검증 커밋을 정확히 지정해 생성합니다. 원본 동기화 PR 대상은 새 `develop_ui/ux_v2`만 사용합니다.
+배포 코드 커밋은 `6e66ec232e556d70c2543e68593427500692eec5`입니다. 원본 동기화 [PR #9](https://github.com/fingertip-vision/sonkkeut-frontend/pull/9)의 대상은 새 `develop_ui/ux_v2`만 사용합니다.

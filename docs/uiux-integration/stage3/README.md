@@ -61,7 +61,7 @@
 | 크기 | 69,998,844 bytes | 77,091,303 bytes |
 | SHA-256 | `1d70382dad23f22592dce671b5ec3e2beb6b2a4af51129849e4216fd6f14883c` | `70e6ac28c8bd936c965a22f73611308bd85df16f6d160737ff7eaca4ee851384` |
 
-Android 8.0 이상 ARM64, target SDK 35. release는 0.2.4와 같은 개발용 인증서 SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`다. 자체 음성 모델은 APK에 포함하지 않는다. 공개 배포 전 단계다.
+Android 8.0 이상 ARM64, target SDK 35. release는 0.2.4와 같은 개발용 인증서 SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`다. 자체 음성 모델은 APK에 포함하지 않는다. 2026-10-06 [0.3.0 릴리스](https://github.com/hy2oni/sonkkeut-frontend/releases/tag/develop-ui-0.3.0-20261006)에 공개했다. 배포 코드/태그 커밋은 `6e66ec232e556d70c2543e68593427500692eec5`이며 업로드된 APK의 GitHub SHA-256도 위 해시와 일치한다. 원본 동기화 [PR #9](https://github.com/fingertip-vision/sonkkeut-frontend/pull/9)는 `develop_ui/ux_v2` 대상으로 열려 있다.
 
 ## 0.2.4 → 0.3.0 업데이트 설치
 

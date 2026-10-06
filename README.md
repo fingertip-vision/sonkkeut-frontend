@@ -4,7 +4,7 @@
 
 `develop_ui_design`은 ‘명확한 신호’를 발전시킨 **손끝길 · Signal** 디자인 보존 브랜치입니다. [디자인·설계·검증 결과](docs/uiux-audit/signal-studio/README.md)의 시안은 별도 `:ui-tooling-probe` 앱(`com.sonkkeut.tooling`)입니다. 실제 제품 기능과의 통합은 **현재 `develop_ui_update` 브랜치의 루트 `app/`**에 반영했습니다. APK와 로컬 빌드 로그는 Git에 포함하지 않습니다.
 
-배포 제품의 기능 기준은 원본 `develop_ui/ux`의 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`입니다. 이후 동기화 대상은 **새 원본 브랜치 `develop_ui/ux_v2`만** 사용합니다. 포크 `develop_ui_update`에서 이 브랜치로 PR을 준비하며 다른 브랜치에 병합하지 않습니다. 현재 0.3.0은 로컬 검증 후보이며 공개 릴리스·PR은 아직 생성하지 않았습니다.
+배포 제품의 기능 기준은 원본 `develop_ui/ux`의 `dc9fdc7118687074cd0c34db0ba87cf425e63fa6`입니다. 동기화 대상은 **새 원본 브랜치 `develop_ui/ux_v2`만** 사용합니다. 포크 `develop_ui_update`에서 이 브랜치로 [PR #9](https://github.com/fingertip-vision/sonkkeut-frontend/pull/9)를 생성했습니다. PR은 열려 있으며 다른 브랜치에 병합하지 않습니다. 0.3.0 개발 APK는 아래 릴리스에 공개했습니다.
 
 통합은 세 단위로 진행했습니다. [1차: 시작·실제 카메라](docs/uiux-integration/stage1/README.md), [2차: 주문·음성·손끝 안내](docs/uiux-integration/stage2/README.md), [3차: 설정·복구·접근성·통합 APK](docs/uiux-integration/stage3/README.md). 별도 검증 앱은 `com.sonkkeut.uiupdate`이며, 업데이트용 release APK는 기존과 같은 `com.sonkkeut`입니다.
 
@@ -19,7 +19,16 @@
 - 빠른 종료·재실행 때 이전 모델의 지연된 엔진 해제가 새 모델을 종료하지 않도록 엔진 수명을 관리합니다. AI 가중치·주문 해석·CameraX 분석 정책은 유지합니다.
 - 단위 검사 **106개**, Android 계측 **25개**, 실제 설정·복귀 Maestro 흐름 통과. 정확한 APK·업데이트 설치 결과와 검증 한계는 [3차 기록](docs/uiux-integration/stage3/README.md)을 확인하세요.
 
-0.3.0 후보 APK는 로컬 `artifacts/sonkkeut-0.3.0.apk`이며 **versionCode 15**, Android 8.0 이상 ARM64, 약 70MB, 기존 개발용 서명을 유지합니다. 독립 에뮬레이터에서 **0.2.4 위 업데이트 설치와 설정·권한 보존**을 확인했습니다. 공개 다운로드 링크는 배포한 뒤 추가합니다. [PR 본문](docs/uiux-integration/stage3/PR_BODY.md) · [배포 설명](docs/uiux-integration/stage3/RELEASE_NOTES.md) · [Git 동기화 준비](docs/uiux-integration/stage3/GIT_HANDOFF.md).
+0.3.0 APK는 **versionCode 15**, Android 8.0 이상 ARM64, 약 70MB이며 기존 개발용 서명을 유지합니다. 독립 에뮬레이터에서 **0.2.4 위 업데이트 설치와 설정·권한 보존**을 확인했습니다. [PR 본문](docs/uiux-integration/stage3/PR_BODY.md) · [배포 설명](docs/uiux-integration/stage3/RELEASE_NOTES.md) · [Git·배포 기록](docs/uiux-integration/stage3/GIT_HANDOFF.md).
+
+## 공개 APK 바로 설치하기 · 0.3.0
+
+- **[0.3.0 APK 다운로드](https://github.com/hy2oni/sonkkeut-frontend/releases/download/develop-ui-0.3.0-20261006/sonkkeut-0.3.0.apk)**
+- [배포 설명](https://github.com/hy2oni/sonkkeut-frontend/releases/tag/develop-ui-0.3.0-20261006)
+
+기존 앱을 삭제하지 않고 다운로드한 APK를 열어 업데이트하세요. 처음 설치하면 카메라·마이크 권한을 허용해 주세요. 자체 음성 모델은 별도 약 485MB이며 모델이 없어도 직접 입력 주문이 가능합니다. 실제 휴대폰의 기존 음성 모델 보존·TalkBack·손끝 인식 정확도는 추가 검증이 필요합니다.
+
+배포 코드 커밋: `6e66ec232e556d70c2543e68593427500692eec5`. APK SHA-256: `1d70382dad23f22592dce671b5ec3e2beb6b2a4af51129849e4216fd6f14883c`.
 
 ## 기존 공개 APK · 0.2.4
 
