@@ -1,0 +1,11 @@
+appId: com.sonkkeut.tooling
+name: Compose tooling state transition smoke
+---
+- launchApp:
+    clearState: false
+- assertVisible: "준비 완료"
+- tapOn: "상태 전환 확인"
+- assertVisible: "전환 완료"
+- tapOn: "준비 상태로 복귀"
+- assertVisible: "준비 완료"
+- takeScreenshot: tooling-ready

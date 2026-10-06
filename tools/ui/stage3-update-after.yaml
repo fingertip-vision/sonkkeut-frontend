@@ -1,0 +1,43 @@
+appId: com.sonkkeut
+name: Stage 3 release after update on disposable device only
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "시작할 준비가 됐어요"
+    timeout: 60000
+- takeScreenshot: stage3-release-home-actual
+- tapOn: "설정"
+- assertVisible: "환경 설정"
+- assertVisible:
+    containsChild:
+      text: "글자 크기, 더 크게"
+    checked: true
+- assertVisible:
+    containsChild:
+      text: "화면 색상, 밝게"
+    checked: true
+- takeScreenshot: stage3-release-settings-actual
+- tapOn: "‹  메인 화면으로"
+- tapOn: "손끝길 시작"
+- extendedWaitUntil:
+    visible: "촬영 중 · 화면 확인"
+    timeout: 60000
+- takeScreenshot: stage3-release-camera-actual
+- tapOn: "직접 입력 주문"
+- assertVisible: "입력한 주문 확인"
+- tapOn: "음성 모델 준비"
+- assertVisible: "자체 음성 모델"
+- takeScreenshot: stage3-release-voice-model-actual
+- tapOn: "닫기"
+- pressKey: Back
+- pressKey: Home
+- launchApp:
+    stopApp: false
+- assertVisible: "카메라 다시 시작"
+- tapOn: "카메라 다시 시작"
+- extendedWaitUntil:
+    visible: "촬영 중 · 화면 확인"
+    timeout: 60000
+- tapOn: "종료"
+- assertVisible: "손끝길 시작"

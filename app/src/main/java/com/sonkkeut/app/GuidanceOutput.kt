@@ -97,7 +97,7 @@ class GuidanceOutput(context: Context) {
         speak(text)
         if(currentId==null) { completion=null; done() }
     }
-    fun repeat() { if (!closed && !suspended) gate.lastText?.let { stopDevices(); speak(it, explicit = true) } }
+    fun repeat() { if (!closed && !suspended) lastText?.let { stopDevices(); speak(it, explicit = true) } }
     fun read(text: String) {
         if (closed || suspended) return
         gate.accept("explicit:${SystemClock.elapsedRealtime()}", text, SystemClock.elapsedRealtime(), false, false)

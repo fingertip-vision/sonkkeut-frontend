@@ -1,0 +1,34 @@
+appId: com.sonkkeut.uiupdate
+name: Stage 3 settings and background recovery
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "시작할 준비가 됐어요"
+    timeout: 60000
+- tapOn: "설정"
+- assertVisible: "환경 설정"
+- takeScreenshot: stage3-settings-actual
+- tapOn: "‹  메인 화면으로"
+- tapOn: "손끝길 시작"
+- extendedWaitUntil:
+    visible: "카메라 연결됨 · 영상 대기|촬영 중 · 화면 확인"
+    timeout: 30000
+- tapOn: "설정"
+- assertVisible: "환경 설정"
+- tapOn: "‹  메인 화면으로"
+- extendedWaitUntil:
+    visible: "카메라 연결됨 · 영상 대기|촬영 중 · 화면 확인"
+    timeout: 30000
+- pressKey: Home
+- launchApp:
+    stopApp: false
+- assertVisible: "카메라 다시 시작"
+- takeScreenshot: stage3-background-return-actual
+- tapOn: "카메라 다시 시작"
+- extendedWaitUntil:
+    visible: "카메라 연결됨 · 영상 대기|촬영 중 · 화면 확인"
+    timeout: 30000
+- takeScreenshot: stage3-camera-restarted-actual
+- tapOn: "종료"
+- assertVisible: "손끝길 시작"

@@ -9,8 +9,8 @@ android {
         applicationId = "com.sonkkeut"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.2.4"
+        versionCode = 15
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -22,7 +22,17 @@ android {
             keyPassword = "android"
         }
     }
-    buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("debug"); isMinifyEnabled = false } }
+    buildTypes {
+        getByName("release") { signingConfig = signingConfigs.getByName("debug"); isMinifyEnabled = false }
+        getByName("debug") {
+            // Opt-in install target for integration QA; preserves the deployed app and its data.
+            if (providers.gradleProperty("uiIntegrationSandbox").orNull == "true") {
+                applicationIdSuffix = ".uiupdate"
+                versionNameSuffix = "-ui-stage3"
+                manifestPlaceholders["debugAppLabel"] = "손끝길 통합 · 3차"
+            } else manifestPlaceholders["debugAppLabel"] = "@string/app_name"
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
@@ -44,6 +54,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.animation:animation")
+    implementation("com.airbnb.android:lottie-compose:6.6.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.json:json:20240303")
@@ -54,4 +66,6 @@ dependencies {
     androidTestImplementation("org.opencv:opencv:4.10.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    debugImplementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }

@@ -1,0 +1,14 @@
+appId: com.sonkkeut
+name: Stage 3 update baseline on disposable device only
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "손끝길 시작"
+    timeout: 60000
+- tapOn: "설정"
+- assertVisible: "환경 설정"
+- tapOn: "더 크게"
+- tapOn: "밝게"
+- takeScreenshot: stage3-update-before-settings
+- tapOn: "‹  메인 화면으로"

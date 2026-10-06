@@ -1,8 +1,12 @@
 package com.sonkkeut.app
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Size
 import android.view.View
 import androidx.activity.ComponentActivity
@@ -20,13 +24,18 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -40,11 +49,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.concurrent.Executors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,19 +74,43 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     val preferences=LocalAccessibilityPreferences.current
     val output=remember { GuidanceOutput(context) }
     val outputSession=remember { intArrayOf(-1,-1) }
+    val orderFocus=remember { FocusRequester() }
+    val uiScope=rememberCoroutineScope()
     var cameraGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) }
     var pendingMic by remember { mutableStateOf(false) }
     var cameraStatus by remember { mutableStateOf("") }
     var modelInfoOpen by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
-    val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted=it; if(it && !model.detailMode) model.start() }
-    val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if(it && pendingMic && model.page=="home" && model.running && !model.paused) { model.listen() } else if(!it) model.announce("마이크 권한을 허용해 주세요."); pendingMic=false }
+    var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
+    var cameraPermissionSettingsRequired by rememberSaveable { mutableStateOf(false) }
+    var micSettingsRequired by rememberSaveable { mutableStateOf(false) }
+    val cameraPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        cameraGranted=it
+        cameraPermissionDenied=!it
+        cameraPermissionSettingsRequired=!it && context is Activity &&
+            !ActivityCompat.shouldShowRequestPermissionRationale(context,Manifest.permission.CAMERA)
+        if(it && !model.detailMode && model.page=="home") { cameraStatus=""; model.start() }
+    }
+    val micPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        micSettingsRequired=!granted && context is Activity && !ActivityCompat.shouldShowRequestPermissionRationale(context,Manifest.permission.RECORD_AUDIO)
+        if(pendingMic && model.page=="home" && model.running && !model.paused) {
+            if(granted) model.listen() else {
+                if(!model.textOrderOpen) model.toggleTextOrder()
+                model.announce("마이크 권한이 없어 주문을 직접 입력할 수 있어요.")
+            }
+        }
+        pendingMic=false
+    }
     SideEffect { output.configure(preferences.voice,preferences.vibration,listOf(.75f,1f,1.25f)[preferences.speed]) }
     DisposableEffect(output) { onDispose { output.close() } }
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,event ->
             if(event==Lifecycle.Event.ON_STOP) { model.stopForBackground(); output.suspendOutput() }
-            if(event==Lifecycle.Event.ON_RESUME) { cameraGranted=ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED; output.resumeOutput() }
+            if(event==Lifecycle.Event.ON_RESUME) {
+                cameraGranted=ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED
+                if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) micSettingsRequired=false
+                output.resumeOutput()
+            }
         }
         lifecycle.lifecycle.addObserver(observer); onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
@@ -99,10 +136,24 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     }
     fun openSettings() { pendingMic=false; output.stop(); model.openEnvironmentSettings() }
     fun closeSettings() { pendingMic=false; output.stop(); model.closeEnvironmentSettings(cameraGranted) }
+    fun repeatGuidance() {
+        if(canRepeatGuidance(output.lastText!=null,model.running,model.paused,model.recording,model.speechBusy)) { output.resumeOutput(); output.repeat() }
+    }
+    fun closeOrder() {
+        model.closeOrderConfirmation()
+        uiScope.launch { withFrameNanos { }; if(model.page=="home" && model.order!=null && !model.orderConfirmationOpen) orderFocus.requestFocus() }
+    }
+    fun startCamera() {
+        when {
+            cameraGranted -> { cameraStatus=""; model.start() }
+            cameraPermissionSettingsRequired -> context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}")))
+            else -> cameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
     BackHandler(model.page!="home" || model.textOrderOpen || model.running || model.detailMode) {
         pendingMic=false
         if(model.page=="accessibility") closeSettings()
-        else if(model.orderConfirmationOpen) model.closeOrderConfirmation()
+        else if(model.orderConfirmationOpen) closeOrder()
         else if(model.detailMode) model.closeDetailRead()
         else if(model.textOrderOpen) model.toggleTextOrder()
         else if(model.page!="home") model.open("home")
@@ -117,33 +168,56 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
             output.resumeOutput()
             output.readOrder(presented!!.confirmation()) { if(model.order===presented) model.orderConfirmationPresented() }
         } } }
-    if(modelInfoOpen) AlertDialog(onDismissRequest={modelInfoOpen=false},title={Text("자체 음성 모델")},text={Text(model.speechStatus)},confirmButton={
+    if(modelInfoOpen) SignalSessionTheme(preferences.light) { AlertDialog(onDismissRequest={modelInfoOpen=false},title={Text("자체 음성 모델")},text={
+        Column(Modifier.verticalScroll(rememberScrollState())) { Text(model.speechStatus) }
+    },confirmButton={
         TextButton(onClick={model.downloadSpeech()},enabled=!model.modelInstalled && !model.speechBusy) { Text("모델 받기 · 약 485MB") }
-    },dismissButton={TextButton(onClick={modelInfoOpen=false}) { Text("닫기") }})
+    },dismissButton={TextButton(onClick={modelInfoOpen=false}) { Text("닫기") }}) }
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
-            "home" -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                NativeHomeToolbar(model.running,{openSettings()},{pendingMic=false; output.stop(); model.end()})
-
-                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).testTag("mainCamera").background(Color(0xFF080F1E))) {
+            "home" -> if(!model.running && !model.detailMode) SignalWelcome(
+                WelcomeState(model.ready,model.message,cameraGranted,cameraPermissionDenied,cameraPermissionSettingsRequired),
+                preferences.light,output.lastText!=null,::startCamera,::openSettings,
+                ::repeatGuidance,model::retryInitialization
+            ) else SignalSessionTheme(preferences.light) {
+                val now by produceState(android.os.SystemClock.elapsedRealtime(),model.cameraActive) {
+                    while(isActive && model.cameraActive) { value=android.os.SystemClock.elapsedRealtime(); delay(250) }
+                }
+                val snapshot=SignalSnapshot(model.paused,model.flowState,model.recording,
+                    model.speechBusy,model.textOrderOpen,model.order!=null,model.frame,model.visualTargetId,
+                    model.targetAttempt,model.visualFrameAttempt,model.visualFrameAt,maxOf(now,android.os.SystemClock.elapsedRealtime()),
+                    model.visualPressAt,model.visualPressAttempt)
+                val presentation=signalPresentation(snapshot)
+                // Match the native announcement cadence. Do not make every camera frame a TalkBack announcement.
+                val accessibilityStatus=remember(model.announcementNumber,model.targetAttempt,presentation.phase,model.flowState,model.paused,model.textOrderOpen,model.speechBusy) {
+                    signalAccessibilityMessage(snapshot,presentation,model.message)
+                }
+                SignalSession(presentation,signalStatusMessage(snapshot,presentation,model.message),
+                    canRepeatGuidance(output.lastText!=null,model.running,model.paused,model.recording,model.speechBusy),::openSettings,
+                    {pendingMic=false; output.clearRepeat(); model.end()},::repeatGuidance,
+                    camera={ cameraModifier ->
+                BoxWithConstraints(cameraModifier.testTag("mainCamera").clip(RoundedCornerShape(24.dp)).background(Color(0xFF080F1E))) {
                     if(cameraGranted && model.cameraActive) key(retry) { NativeCamera(Modifier.fillMaxSize(),model,{cameraStatus=it; if(it.startsWith("카메라 오류")) { model.pause(); output.suspendOutput() }}) }
-                    else Column(Modifier.align(Alignment.Center).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        Text(if(!cameraGranted) "카메라 권한을 허용해 주세요." else model.message,color=Color.White)
-                        Button(onClick={if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA)},enabled=model.ready || !cameraGranted,modifier=Modifier.heightIn(min=56.dp)) { Text(if(!cameraGranted) "카메라 권한 허용" else if(model.running) "카메라 다시 시작" else "손끝길 시작") }
-                        if(cameraStatus.startsWith("카메라 오류")) {
-                            Text(cameraStatus,color=Color.White)
-                            NativeButton("카메라 다시 연결") { retry++; cameraStatus=""; model.start() }
-                        }
-                    }
+                    else SignalRecovery(signalRecovery(cameraGranted,cameraPermissionSettingsRequired,cameraStatus.startsWith("카메라 오류"),model.flowState=="S6"),
+                        model.ready || !cameraGranted) { if(cameraStatus.startsWith("카메라 오류")) retry++; startCamera() }
                     if(cameraGranted && model.cameraActive) {
-                        CameraOverlay(model.frame,Modifier.fillMaxSize(),preferences.lowVision && model.flowState in listOf("S4","S5"))
+                        CameraOverlay(if(presentation.frameVisible) model.frame + ("target_image_box" to presentation.targetBox) else emptyMap(),
+                            Modifier.fillMaxSize(),preferences.lowVision && presentation.targetBox!=null)
+                        // Binding is not evidence of frames or successful recognition. Reset for every session.
+                        val frameBaseline=remember(model.cameraActive,retry) { model.frames }
+                        if(model.order==null && !model.detailMode) Surface(
+                            Modifier.align(Alignment.TopStart).padding(12.dp),color=Color(0xDD111717),
+                            shape=androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) {
+                            Text(cameraConnectionLabel(cameraStatus,model.frames>frameBaseline),color=Color(0xFFF4F2E9),
+                                modifier=Modifier.padding(horizontal=12.dp,vertical=8.dp).testTag("cameraConnectionStatus"))
+                        }
                         if(cameraStatus.startsWith("카메라 오류")) TextButton(onClick={retry++},modifier=Modifier.align(Alignment.Center)) { Text("카메라 다시 연결") }
                     }
-                    if(model.order!=null && !showOrderConfirmation) FilledTonalButton(onClick=model::showOrderConfirmation,modifier=Modifier.align(Alignment.BottomEnd)) { Text("주문 보기") }
-                    if(showOrderConfirmation) Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max=maxHeight * .5f),tonalElevation=8.dp) {
-                        NativeOrderConfirmation(model.order!!,model.progressText(),Modifier.padding(8.dp),model::closeOrderConfirmation)
-                    }
+                    if(showOrderConfirmation) SignalOrderPanel(model.order!!,model.progressText(),
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max=maxHeight * .5f),::closeOrder)
                 }
+                },order=if(model.order!=null) { { SignalOrderCard(model.order!!,model.progressText(),model::showOrderConfirmation,Modifier.focusRequester(orderFocus)) } } else null,
+                controls={
                 if(model.detailMode) {
                     Column(Modifier.fillMaxWidth().heightIn(max=280.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(model.detailStatus,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
@@ -158,18 +232,17 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 if(model.running && !model.paused && model.flowState!="S6") {
                     if(model.textOrderOpen || model.recording || model.speechBusy || (model.flowState=="S3" && model.order==null)) {
                         Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                        if(!model.modelInstalled && !model.recording && !model.speechBusy) TextButton(onClick={modelInfoOpen=true}) { Text("음성 모델 준비") }
-                        else if(!model.recording && !model.speechBusy && !model.textOrderOpen) NativeButton("주문 말하기",enabled=model.menu.isNotEmpty()) {
+                        SignalSpeechControls(model.recording,model.speechBusy,model.textOrderOpen,model.modelInstalled,model.menu.isNotEmpty(),
+                            {modelInfoOpen=true},{
                             output.suspendOutput()
                             if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) model.listen()
                             else { pendingMic=true; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
-                        }
-                        if(model.recording) NativeButton("말하기 완료") { model.finishSpeech() }
-                        if(model.speechBusy) NativeButton("음성 작업 취소") { model.cancelSpeech(); output.resumeOutput() }
+                        },model::finishSpeech,{model.cancelSpeech(); output.resumeOutput()},model::toggleTextOrder)
+                        if(micSettingsRequired) TextButton(onClick={context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}")))},modifier=Modifier.heightIn(min=56.dp)) { Text("마이크 권한 설정") }
                         if(model.textOrderOpen) {
                             OutlinedTextField(model.orderDraft,model::editOrderDraft,label={Text("주문 문장")},modifier=Modifier.fillMaxWidth(),minLines=1,maxLines=2)
                             NativeButton("입력한 주문 확인",enabled=!model.speechBusy) { model.submit(model.orderDraft) }
-                        } else if(!model.recording && !model.speechBusy) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
+                        }
                         model.rag?.let { result ->
                             result.ambiguities.firstOrNull()?.let { ambiguity ->
                                 Text("‘${ambiguity.original}’과 비슷한 메뉴를 선택해 주세요.")
@@ -190,15 +263,19 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     } else if(model.order==null) NativeButton("직접 입력 주문") { model.toggleTextOrder() }
                 }
                 if(model.flowState=="SE") NativeButton("화면 다시 확인") { model.recoverScreen() }
-                NativeStatus(model.message)
-                NativeHomeActions(model.running,model.ready,output.lastText!=null,
-                    { if(cameraGranted) model.start() else cameraPermission.launch(Manifest.permission.CAMERA) },
-                    { output.resumeOutput(); output.repeat() })
+                },accessibilityMessage=accessibilityStatus,announceStatus=!showOrderConfirmation)
             }
             "accessibility" -> AccessibilitySettings { closeSettings() }
 
         }
     }
+}
+
+internal fun cameraConnectionLabel(status: String, hasProcessedFrame: Boolean): String = when {
+    status.startsWith("카메라 오류") -> "카메라 연결을 확인해 주세요"
+    hasProcessedFrame -> "촬영 중 · 화면 확인"
+    status == "카메라 연결됨" -> "카메라 연결됨 · 영상 대기"
+    else -> "촬영 준비 · 카메라 연결 중"
 }
 
 @Composable
@@ -214,18 +291,21 @@ private fun CameraOverlay(frame: Map<String,Any?>,modifier: Modifier,showTarget:
         val dimensions=frame["frame_size"] as? List<*> ?: return@Canvas
         val width=(dimensions.getOrNull(0) as? Number)?.toFloat() ?: return@Canvas
         val height=(dimensions.getOrNull(1) as? Number)?.toFloat() ?: return@Canvas
-        if(width<=0 || height<=0) return@Canvas
+        if(!width.isFinite() || !height.isFinite() || width<=0 || height<=0) return@Canvas
         val scale=minOf(size.width/width,size.height/height); val dx=(size.width-width*scale)/2; val dy=(size.height-height*scale)/2
         fun point(x: Float,y: Float)=Offset(dx+x*scale,dy+y*scale)
         (frame["corners"] as? List<*>)?.let { values -> if(values.size==8) for(i in 0..3) {
             val next=(i+1)%4
             val x=(values[i*2] as? Number)?.toFloat() ?: continue; val y=(values[i*2+1] as? Number)?.toFloat() ?: continue
             val nx=(values[next*2] as? Number)?.toFloat() ?: continue; val ny=(values[next*2+1] as? Number)?.toFloat() ?: continue
-            drawLine(Color(0xFFFFDF38),point(x,y),point(nx,ny),3.dp.toPx())
+            if(listOf(x,y,nx,ny).any { !it.isFinite() } || x !in 0f..width || nx !in 0f..width || y !in 0f..height || ny !in 0f..height) continue
+            drawLine(SignalInk,point(x,y),point(nx,ny),5.dp.toPx())
+            drawLine(SignalGold,point(x,y),point(nx,ny),2.dp.toPx())
         } }
         (frame["target_image_box"] as? List<*>)?.takeIf { showTarget }?.let { box -> if(box.size==4) {
             val b=box.map { (it as? Number)?.toFloat() ?: return@let }
-            drawRect(Color(0xFFFFDF38),point(b[0],b[1]),androidx.compose.ui.geometry.Size((b[2]-b[0])*scale,(b[3]-b[1])*scale),style=Stroke(5.dp.toPx()))
+            drawRect(SignalInk,point(b[0],b[1]),androidx.compose.ui.geometry.Size((b[2]-b[0])*scale,(b[3]-b[1])*scale),style=Stroke(8.dp.toPx()))
+            drawRect(SignalGold,point(b[0],b[1]),androidx.compose.ui.geometry.Size((b[2]-b[0])*scale,(b[3]-b[1])*scale),style=Stroke(4.dp.toPx()))
         } }
     }
 }
@@ -239,6 +319,7 @@ private fun NativeCamera(modifier: Modifier,model: NativeAppModel,status: (Strin
     val previewView=remember { PreviewView(context).apply { implementationMode=PreviewView.ImplementationMode.COMPATIBLE; scaleType=PreviewView.ScaleType.FIT_CENTER; importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO } }
     AndroidView(factory={previewView},modifier=modifier.semantics { contentDescription="키오스크 촬영용 카메라" })
     DisposableEffect(owner,previewView,wide) {
+        latestStatus("카메라 연결 중")
         var disposed=false; var provider: ProcessCameraProvider?=null
         val resolution=ResolutionSelector.Builder()
             .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)

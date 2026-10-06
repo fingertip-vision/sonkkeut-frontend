@@ -8,6 +8,7 @@ import androidx.test.rule.GrantPermissionRule
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.After
 
 class NativeAppTest {
     @get:Rule(order=0) val permission: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO)
@@ -17,7 +18,7 @@ class NativeAppTest {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         assertThrows(ClassNotFoundException::class.java) { Class.forName("com.facebook.react.ReactActivity") }
         assertTrue(model().connectionMessage.startsWith("연결됨"))
-        compose.onAllNodes(hasScrollAction()).assertCountEquals(0)
+        compose.onNodeWithTag("welcomeStart").assertIsEnabled()
         compose.onNodeWithText("설정").assertExists()
     }
     @Test fun cameraRunsAndPauseResumeDoesNotCrash() {
@@ -40,13 +41,16 @@ class NativeAppTest {
         try { compose.waitUntil(45000) { model().frames>=before+2 } }
         catch(e: Exception) { throw AssertionError("input camera: frames=${model().frames}, before=$before, paused=${model().paused}, running=${model().running}, active=${model().cameraActive}, state=${model().flowState}, message=${model().message}, box=${compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot}",e) }
         compose.onNode(hasSetTextAction()).performTextInput("$name 한 잔 포장해 주세요")
+        captureStage2("stage2-input-actual")
         compose.onNodeWithText("입력한 주문 확인").performClick()
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
         compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
         compose.onNodeWithText("주문 확인").assertExists()
+        captureStage2("stage2-order-actual")
         val cameraBounds=compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithText("닫기").performClick()
+        captureStage2("stage2-guidance-search-actual")
         compose.onNodeWithText("주문 보기").performClick()
         compose.onNodeWithText("주문 확인").assertExists()
         assertEquals(cameraBounds,compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot)
@@ -72,8 +76,8 @@ class NativeAppTest {
         assertFalse(model().paused)
         compose.onNodeWithText("종료").performClick()
         assertFalse(model().running); assertNull(model().order); assertNull(model().screen)
-        compose.onAllNodes(hasScrollAction()).assertCountEquals(0)
-        compose.onAllNodesWithText("손끝길 시작").assertCountEquals(2)
+        compose.onNodeWithTag("signalWelcome").assertIsDisplayed()
+        compose.onAllNodesWithText("손끝길 시작").assertCountEquals(1)
     }
     @Test fun recommendationSelectionNeedsEditedOrderBeforeAutomaticGuidance() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
@@ -138,5 +142,13 @@ class NativeAppTest {
         Thread.sleep(1000)
         assertFalse(model().detailMode); assertFalse(model().detailBusy); assertTrue(model().detailLines.isEmpty())
         assertEquals("accessibility",model().page)
+    }
+
+    private fun captureStage2(name: String) {
+        compose.waitForIdle()
+        val instrumentation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        java.io.File(instrumentation.targetContext.externalCacheDir,"$name.png").outputStream().use {
+            instrumentation.uiAutomation.takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+        }
     }
 }
