@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeMenuKnowledgeTest {
+    private fun screen(name: String)=RecognizedScreen("menu",1,listOf(RecognizedElement("menu","menu",name,listOf(0.1,0.1,0.8,0.3),true)),null,null,null)
     private fun row(name: String="에스프레소")=JSONObject().put("name",name).put("aliases",JSONArray()).put("sold_out",false).put("category","커피").put("price",3000)
     @Test fun olderMenuAndNullMetadataRemainCompatible() {
         val old=NativeMenuDocuments.parse(row())
@@ -15,11 +16,11 @@ class NativeMenuKnowledgeTest {
     }
     @Test fun registeredRelatedTermsAreRecommendationsNotOrderingAliases() {
         val m=NativeMenuDocuments.parse(row().put("related_terms",JSONArray(listOf("진한 커피"))).put("description","고소한 풍미"))
-        val match=NativeMenuRecommendations.suggest("진한 커피 한 잔 주세요",listOf(m),null).single()
+        val match=NativeMenuRecommendations.suggest("진한 커피 한 잔 주세요",listOf(m),screen(m.name)).single()
         assertEquals(m.name,match.menu.name); assertEquals("store_knowledge",match.basis)
         assertTrue(MenuMatcher(listOf(m)).exact("진한 커피").isEmpty())
         assertThrows(IllegalArgumentException::class.java) { NativeOrderParser.parse("진한 커피 한 잔",listOf(m)) }
-        assertEquals("에스프레소",NativeMenuRecommendations.draft(match,listOf(m)))
+        assertEquals("에스프레소",NativeMenuRecommendations.draft(match,listOf(m),screen(m.name)))
     }
     @Test fun registeredDescriptionAndCategoryCanProvideCandidateEvidence() {
         val described=MenuDocument("에스프레소",description="고소한 풍미")
@@ -68,6 +69,6 @@ class NativeMenuKnowledgeTest {
     @Test fun soldOutKnowledgeCandidatesNeverGetADraft() {
         val sold=MenuDocument("에스프레소",soldOut=true,relatedTerms=listOf("진한 커피"))
         assertTrue(NativeMenuRecommendations.suggest("진한 커피",listOf(sold),null).isEmpty())
-        assertNull(NativeMenuRecommendations.draft(MenuMatch(sold,.97,"store_knowledge"),listOf(sold)))
+        assertNull(NativeMenuRecommendations.draft(MenuMatch(sold,.97,"store_knowledge"),listOf(sold),screen(sold.name)))
     }
 }

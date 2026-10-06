@@ -2,6 +2,10 @@ package com.sonkkeut.app
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
@@ -52,9 +56,34 @@ class SignalWelcomeLayoutTest {
         val action=compose.onNodeWithTag("welcomeStart").fetchSemanticsNode().boundsInRoot
         assertTrue(action.left>=viewport.left && action.right<=viewport.right && action.bottom<=viewport.bottom)
         capture("stage1-large-2.6-fixture")
-        compose.onNodeWithText("03  따라가기").performScrollTo().assertIsDisplayed()
+        assertNoScrolling()
     }
 
+    @Test fun tallAndCompactPhoneRatiosKeepBrandingFixedWithoutScrollActions() {
+        var height by mutableStateOf(760.dp)
+        var scale by mutableStateOf(1f)
+        compose.setContent {
+            val density=LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density,scale)) {
+                Box(Modifier.requiredSize(360.dp,height)) {
+                    SignalWelcome(WelcomeState(true,"",true),false,false,{},{},{})
+                }
+            }
+        }
+        for((h,font) in listOf(760.dp to 1f,640.dp to 1f,760.dp to 2.6f,640.dp to 2.6f)) {
+            compose.runOnIdle { height=h; scale=font }
+            compose.onNodeWithTag("welcomeStart").assertIsDisplayed()
+            compose.onNodeWithText("설정").assertIsDisplayed()
+            compose.onNodeWithText("재안내").assertIsDisplayed()
+            assertNoScrolling()
+            val image=compose.onNodeWithTag("welcomeBranding",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            compose.onNodeWithTag("signalWelcome").performTouchInput { swipeUp() }
+            assertEquals(image,compose.onNodeWithTag("welcomeBranding",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot)
+        }
+    }
+    private fun assertNoScrolling() {
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy),useUnmergedTree=true).assertCountEquals(0)
+    }
     private fun capture(name: String) {
         compose.mainClock.advanceTimeBy(500)
         compose.waitForIdle()

@@ -33,6 +33,21 @@ class NativeAppTest {
         compose.runOnUiThread { model().start() }
         compose.waitUntil(45000) { model().frames>=before+2 }
     }
+    @Test fun ocrRegionDisplayExpiresAndCannotSurvivePause() {
+        compose.waitUntil(60000) { model().ready }
+        compose.onNodeWithTag("ocrOutlineToggle").assertDoesNotExist()
+        compose.runOnUiThread { model().start() }
+        compose.onNodeWithTag("ocrOutlineToggle").performScrollTo().performClick()
+        assertTrue(model().ocrOutlineState(android.os.SystemClock.elapsedRealtime()).requested)
+        compose.waitUntil(7000) { !model().ocrOutlineState(android.os.SystemClock.elapsedRealtime()).requested }
+        compose.waitUntil(2000) { compose.onAllNodesWithText("글자 인식 영역 확인 · 5초").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("글자 인식 영역 확인 · 5초").assertExists()
+        compose.onNodeWithTag("ocrOutlineToggle").performClick()
+        compose.runOnUiThread { model().pause() }
+        compose.onNodeWithTag("ocrOutlineToggle").assertIsNotEnabled()
+        compose.runOnUiThread { model().start() }
+        assertFalse(model().ocrOutlineState(android.os.SystemClock.elapsedRealtime()).requested)
+    }
     @Test fun nativeTypingAutomaticallyStartsGuidanceAndShowsOnlyOrderSummary() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
         compose.runOnUiThread { model().start(); model().toggleTextOrder() }
@@ -42,7 +57,7 @@ class NativeAppTest {
         catch(e: Exception) { throw AssertionError("input camera: frames=${model().frames}, before=$before, paused=${model().paused}, running=${model().running}, active=${model().cameraActive}, state=${model().flowState}, message=${model().message}, box=${compose.onNodeWithTag("mainCamera").fetchSemanticsNode().boundsInRoot}",e) }
         compose.onNode(hasSetTextAction()).performTextInput("$name 한 잔 포장해 주세요")
         captureStage2("stage2-input-actual")
-        compose.onNodeWithText("입력한 주문 확인").performClick()
+        compose.onNodeWithText("입력한 주문 확인").performScrollTo().performClick()
         compose.waitUntil(10000) { model().order!=null && !model().speechBusy }
         compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
@@ -79,19 +94,19 @@ class NativeAppTest {
         compose.onNodeWithTag("signalWelcome").assertIsDisplayed()
         compose.onAllNodesWithText("손끝길 시작").assertCountEquals(1)
     }
-    @Test fun recommendationSelectionNeedsEditedOrderBeforeAutomaticGuidance() {
+    @Test fun unobservedMenusAreNotRecommendedAndDirectOrderStillWorks() {
         compose.waitUntil(60000) { model().ready && model().menu.isNotEmpty() }
-        compose.runOnUiThread { model().start(); model().submit("커피 두 잔 주세요") }
-        compose.waitUntil(10000) { !model().speechBusy && model().recommendations.isNotEmpty() }
+        // Pause the camera: catalog data alone must never count as screen evidence.
+        compose.runOnUiThread { model().start(); model().pause(); model().submit("커피 두 잔 주세요") }
+        compose.waitUntil(10000) { !model().speechBusy }
+        assertTrue(model().visibleRecommendations.isEmpty())
+        assertTrue(model().recommendations.isEmpty())
         assertNull(model().order)
-        val selected=model().recommendations.first()
-        compose.onNodeWithText("후보 선택 · ${selected.menu.name}").performClick()
-        assertNull(model().order); assertTrue(model().textOrderOpen); assertEquals(selected.menu.name,model().orderDraft)
-        compose.onNode(hasSetTextAction()).performTextClearance()
-        compose.onNode(hasSetTextAction()).performTextInput("${selected.menu.name} 두 잔 포장해 주세요")
-        compose.onNodeWithText("입력한 주문 확인").performClick()
+        val name=model().menu.first { !it.soldOut }.name
+        compose.runOnUiThread { model().start(); model().submit("$name 두 잔 포장해 주세요") }
         compose.waitUntil(10000) { !model().speechBusy && model().order!=null }
-        assertEquals(2,model().order!!.items.single().qty); compose.waitUntil(20000) { model().flowState!="S3" }
+        assertEquals(2,model().order!!.items.single().qty)
+        compose.waitUntil(20000) { model().flowState!="S3" }
         compose.onNodeWithText("네, 이 주문으로 안내 시작").assertDoesNotExist()
     }
     @Test fun recognizedSpeechStartsOnlyForValidOrdersAndHidesRawTranscript() {

@@ -118,7 +118,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
         if(outputSession[0]!=model.targetAttempt) { output.resetAttempt(); outputSession[0]=model.targetAttempt }
         if(outputSession[1]==model.announcementNumber) return@LaunchedEffect
         outputSession[1]=model.announcementNumber
-        if(!model.recording && !model.speechBusy) output.resumeOutput()
+        if(!model.recording && (!model.speechBusy || model.speechAnalyzing)) output.resumeOutput()
         if(model.announcement.isNotBlank() && !model.awaitingOrderPresentation) output.announce("native:${model.announcementNumber}",model.announcement,press=model.pressAnnouncement,
             vibration=if(model.pressAnnouncement) longArrayOf(0,70,60,70) else if(model.vibeHz>0) longArrayOf(0,25,(1000/model.vibeHz).toLong().coerceAtLeast(60),25) else null)
     }
@@ -186,8 +186,9 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 val snapshot=SignalSnapshot(model.paused,model.flowState,model.recording,
                     model.speechBusy,model.textOrderOpen,model.order!=null,model.frame,model.visualTargetId,
                     model.targetAttempt,model.visualFrameAttempt,model.visualFrameAt,maxOf(now,android.os.SystemClock.elapsedRealtime()),
-                    model.visualPressAt,model.visualPressAttempt)
+                    model.visualPressAt,model.visualPressAttempt,model.speechPreparing,model.speechAnalyzing)
                 val presentation=signalPresentation(snapshot)
+                val ocrOutlines=model.ocrOutlineState(maxOf(now,android.os.SystemClock.elapsedRealtime()))
                 // Match the native announcement cadence. Do not make every camera frame a TalkBack announcement.
                 val accessibilityStatus=remember(model.announcementNumber,model.targetAttempt,presentation.phase,model.flowState,model.paused,model.textOrderOpen,model.speechBusy) {
                     signalAccessibilityMessage(snapshot,presentation,model.message)
@@ -201,6 +202,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                     else SignalRecovery(signalRecovery(cameraGranted,cameraPermissionSettingsRequired,cameraStatus.startsWith("카메라 오류"),model.flowState=="S6"),
                         model.ready || !cameraGranted) { if(cameraStatus.startsWith("카메라 오류")) retry++; startCamera() }
                     if(cameraGranted && model.cameraActive) {
+                        OcrRegionOverlay(model.frame,ocrOutlines.regions,Modifier.fillMaxSize())
                         CameraOverlay(if(presentation.frameVisible) model.frame + ("target_image_box" to presentation.targetBox) else emptyMap(),
                             Modifier.fillMaxSize(),preferences.lowVision && presentation.targetBox!=null)
                         // Binding is not evidence of frames or successful recognition. Reset for every session.
@@ -218,6 +220,14 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 }
                 },order=if(model.order!=null) { { SignalOrderCard(model.order!!,model.progressText(),model::showOrderConfirmation,Modifier.focusRequester(orderFocus)) } } else null,
                 controls={
+                if(model.running && !model.detailMode && model.flowState!="S6") {
+                    TextButton(onClick=model::toggleOcrOutlines,enabled=cameraGranted && model.cameraActive,
+                        modifier=Modifier.fillMaxWidth().heightIn(min=56.dp).testTag("ocrOutlineToggle")
+                            .semantics { stateDescription=if(ocrOutlines.requested) ocrOutlines.status else "표시 꺼짐" }) {
+                        Text(if(ocrOutlines.requested) "글자 인식 영역 숨기기" else "글자 인식 영역 확인 · 5초")
+                    }
+                    Text("실선: 읽기 신뢰도 높음 · 점선: 확인 필요")
+                }
                 if(model.detailMode) {
                     Column(Modifier.fillMaxWidth().heightIn(max=280.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text(model.detailStatus,modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
@@ -245,18 +255,23 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                         }
                         model.rag?.let { result ->
                             result.ambiguities.firstOrNull()?.let { ambiguity ->
-                                Text("‘${ambiguity.original}’과 비슷한 메뉴를 선택해 주세요.")
-                                var candidatePage by remember(ambiguity) { mutableIntStateOf(0) }
-                                val candidate=ambiguity.candidates[candidatePage]
-                                NativeButton(candidate.menu.name+if(candidate.menu.soldOut) " · 품절" else "",enabled=!candidate.menu.soldOut) { model.selectCandidate(candidate) }
-                                if(ambiguity.candidates.size>1) Row { TextButton(onClick={candidatePage=(candidatePage+1)%ambiguity.candidates.size}) { Text("다른 후보 (${candidatePage+1}/${ambiguity.candidates.size})") } }
+                                val candidates=model.visibleSpeechCandidates
+                                Text(if(candidates.isNotEmpty()) "‘${ambiguity.original}’과 비슷한 현재 화면의 메뉴를 선택해 주세요."
+                                    else "현재 화면에서 후보 메뉴를 확인하지 못했습니다. 메뉴 화면을 다시 비춰 주세요.")
+                                var candidatePage by remember(candidates) { mutableIntStateOf(0) }
+                                val candidate=candidates.getOrNull(candidatePage)
+                                if(candidate!=null) {
+                                    NativeButton(candidate.menu.name,enabled=!model.speechBusy) { model.selectCandidate(candidate) }
+                                    if(candidates.size>1) Row { TextButton(onClick={candidatePage=(candidatePage+1)%candidates.size}) { Text("다른 후보 (${candidatePage+1}/${candidates.size})") } }
+                                } else NativeButton("메뉴 화면 다시 확인",enabled=!model.speechBusy) { model.refreshMenuScreen() }
                             }
                         }
-                        if(model.recommendations.isNotEmpty()) {
-                            var candidatePage by remember(model.recommendations) { mutableIntStateOf(0) }
-                            val candidate=model.recommendations[candidatePage]
+                        val visibleRecommendations=model.visibleRecommendations
+                        if(visibleRecommendations.isNotEmpty()) {
+                            var candidatePage by remember(visibleRecommendations) { mutableIntStateOf(0) }
+                            val candidate=visibleRecommendations[candidatePage]
                             NativeButton("후보 선택 · ${candidate.menu.name}",enabled=!model.speechBusy) { model.selectRecommendation(candidate) }
-                            if(model.recommendations.size>1) TextButton(onClick={candidatePage=(candidatePage+1)%model.recommendations.size}) { Text("다른 후보 (${candidatePage+1}/${model.recommendations.size})") }
+                            if(visibleRecommendations.size>1) TextButton(onClick={candidatePage=(candidatePage+1)%visibleRecommendations.size}) { Text("다른 후보 (${candidatePage+1}/${visibleRecommendations.size})") }
 
                         }
                         }

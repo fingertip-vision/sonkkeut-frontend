@@ -9,8 +9,8 @@ android {
         applicationId = "com.sonkkeut"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.3.0"
+        versionCode = 16
+        versionName = "0.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
     }

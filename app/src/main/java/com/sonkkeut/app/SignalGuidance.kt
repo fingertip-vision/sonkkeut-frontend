@@ -28,7 +28,9 @@ internal data class SignalSnapshot(
     val frameAt: Long = 0,
     val now: Long = 0,
     val pressAt: Long = 0,
-    val pressAttempt: Int = -1
+    val pressAttempt: Int = -1,
+    val preparingVoice: Boolean = false,
+    val voiceAnalysis: Boolean = false
 )
 
 /** Never infer a direction from a target rectangle, S4/S5, or a previous target's event. */
@@ -36,7 +38,9 @@ internal fun signalPresentation(s: SignalSnapshot): SignalPresentation {
     fun state(p: SignalPhase, label: String, title: String, detail: String) = SignalPresentation(p,label,title,detail)
     if(s.flow=="S6") return state(SignalPhase.COMPLETE,"안내 완료","결제 화면에\n도착했어요","결제는 키오스크에서 직접 진행해 주세요.")
     if(s.paused) return state(SignalPhase.PAUSED,"잠시 멈춤","준비되면,\n다시 시작해요","카메라 다시 시작을 눌러 이어가세요.")
-    if(s.recording) return state(SignalPhase.LISTENING,"주문 듣는 중","메뉴와 수량을\n말씀해 주세요","다 말하면 말하기 완료를 눌러 주세요.")
+    if(s.preparingVoice) return state(SignalPhase.PROCESSING,"음성 모델 준비 중","마이크를\n준비하고 있어요","음성 인식 중으로 바뀌면 말씀해 주세요.")
+    if(s.recording) return state(SignalPhase.LISTENING,"음성 인식 중","메뉴와 수량을\n말씀해 주세요","말이 끝나면 자동으로 분석해요. 말하기 완료를 눌러도 돼요.")
+    if(s.busy && s.voiceAnalysis) return state(SignalPhase.PROCESSING,"음성 분석 중","말씀하신 주문을\n분석하고 있어요","녹음은 끝났어요. 잠시만 기다려 주세요.")
     if(s.busy) return state(SignalPhase.PROCESSING,"주문 처리 중","주문을\n확인하고 있어요","잠시만 기다려 주세요.")
     if(s.editing) return state(SignalPhase.ORDER,"직접 입력","어떤 메뉴를\n주문할까요?","메뉴·수량·옵션을 함께 입력해 주세요.")
     if(s.flow=="SE") return state(SignalPhase.ERROR,"다시 확인","화면을 다시\n확인해 주세요","손을 멈추고 화면 다시 확인을 눌러 주세요.")

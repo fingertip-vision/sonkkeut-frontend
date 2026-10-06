@@ -4,10 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -50,7 +48,7 @@ internal data class WelcomeState(
 ) {
     val canRetry: Boolean get() = !ready && message.startsWith("AI 준비 실패")
     val status: String get() = when {
-        !ready && message.startsWith("AI 준비 실패") -> message
+        !ready && message.startsWith("AI 준비 실패") -> "AI를 준비하지 못했어요. 다시 시도해 주세요"
         !ready -> "시작에 필요한 AI를 준비하고 있어요"
         !cameraGranted && permissionDenied -> if (permissionSettingsRequired)
             "휴대폰 설정에서 카메라 권한을 허용해 주세요"
@@ -104,38 +102,44 @@ internal fun SignalWelcome(
                     SignalText("설정", 16, foreground)
                 }
             }
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp).semantics { traversalIndex = 1f }) {
-                Spacer(Modifier.height(if (large) 12.dp else 27.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(6.dp).background(accent, CircleShape))
-                    SignalText("나의 속도로, 나의 주문을", 16, accent, bold = true)
-                }
-                Spacer(Modifier.height(14.dp))
-                SignalText("손끝에서,\n막힘없이.", if (large) 28 else 49, foreground,
-                    Modifier.semantics { heading() }, bold = true, lineHeight = if (large) 36 else 58)
-                // This illustration is branding only, never a representation of live AI output.
-                Surface(color = SignalInk, shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(if (large) 140.dp else 240.dp)
-                        .clearAndSetSemantics {}) {
-                    Box {
-                        Image(painterResource(R.drawable.signal_path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                        if (!light) {
-                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to SignalInk, .12f to Color.Transparent, .86f to Color.Transparent, 1f to SignalInk)))
-                            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to SignalInk, .23f to Color.Transparent, .77f to Color.Transparent, 1f to SignalInk)))
+            // Actions are measured first; branding consumes only the remaining bounded space.
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal=28.dp)
+                .semantics { traversalIndex=1f }) {
+                val fontScale=LocalDensity.current.fontScale
+                val roomy=maxHeight >= (400 * fontScale).dp
+                val showIntro=maxHeight >= (110 * fontScale).dp
+                Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(if(roomy) 12.dp else 6.dp)) {
+                    if(roomy) {
+                        Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(6.dp).background(accent,CircleShape))
+                            SignalText("나의 속도로, 나의 주문을",16,accent,bold=true)
+                        }
+                        SignalText("손끝에서,\n막힘없이.",49,foreground,Modifier.semantics { heading() },bold=true,lineHeight=58)
+                    } else if(!large && showIntro) {
+                        SignalText("손끝에서, 막힘없이.",28,foreground,Modifier.semantics { heading() },bold=true,lineHeight=36)
+                    }
+                    // Decorative image shrinks with available height, never creates a scroll range.
+                    Surface(color=SignalInk,shape=RoundedCornerShape(24.dp),
+                        modifier=Modifier.fillMaxWidth().weight(1f).testTag("welcomeBranding").clearAndSetSemantics {}) {
+                        Box {
+                            Image(painterResource(R.drawable.signal_path),null,Modifier.fillMaxSize(),contentScale=ContentScale.Fit)
+                            if(!light) {
+                                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to SignalInk,.12f to Color.Transparent,.86f to Color.Transparent,1f to SignalInk)))
+                                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to SignalInk,.23f to Color.Transparent,.77f to Color.Transparent,1f to SignalInk)))
+                            }
                         }
                     }
-                }
-                SignalText("화면을 비추고, 메뉴를 말하세요.\n손끝이 갈 곳을 함께 찾아드려요.", 19, muted, lineHeight = 28)
-                Spacer(Modifier.height(24.dp))
-                HorizontalDivider(color = edge)
-                if (large) Column(Modifier.padding(vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("01  비추기", "02  말하기", "03  따라가기").forEach { SignalText(it, 17, foreground, bold = true) }
-                } else Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("비추기", "말하기", "따라가기").forEachIndexed { index, label ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SignalText("0${index + 1}", 12, accent, Modifier.clearAndSetSemantics {})
-                            SignalText(label, 16, foreground, bold = true)
+                    if(showIntro) SignalText(if(roomy) "화면을 비추고, 메뉴를 말하세요.\n손끝이 갈 곳을 함께 찾아드려요."
+                        else "화면을 비추고,\n메뉴를 말하세요.",if(large) 17 else 19,muted,lineHeight=if(large) 24 else 28)
+                    if(roomy) {
+                        HorizontalDivider(color=edge)
+                        Row(Modifier.fillMaxWidth().padding(vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+                            listOf("비추기","말하기","따라가기").forEachIndexed { index,label ->
+                                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                    SignalText("0${index+1}",12,accent,Modifier.clearAndSetSemantics {})
+                                    SignalText(label,16,foreground,bold=true)
+                                }
+                            }
                         }
                     }
                 }
@@ -143,8 +147,7 @@ internal fun SignalWelcome(
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 12.dp, bottom = 10.dp)
                 .semantics { traversalIndex = 2f }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SignalText(state.status, if (large) 14 else 16, muted,
-                    Modifier.testTag("welcomeStatus").heightIn(max = if (large) 130.dp else 96.dp)
-                        .verticalScroll(rememberScrollState()).semantics { liveRegion = LiveRegionMode.Polite })
+                    Modifier.testTag("welcomeStatus").semantics { liveRegion = LiveRegionMode.Polite })
                 Button(onClick = { if(state.canRetry) onRetry?.invoke() else onStart() }, enabled = actionEnabled,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp).testTag("welcomeStart"),
                     shape = RoundedCornerShape(24.dp), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 18.dp),
@@ -155,13 +158,7 @@ internal fun SignalWelcome(
                         Modifier.weight(1f), bold = true)
                     if (!large) SignalText("→", 30, if (actionEnabled) SignalInk else muted, Modifier.clearAndSetSemantics {})
                 }
-                if (large) Column(Modifier.fillMaxWidth()) {
-                    SignalText("결제는 키오스크에서\n직접 진행해요", 12, muted, lineHeight = 17)
-                    TextButton(onClick = onRepeat, enabled = repeatEnabled,
-                        modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)) {
-                        SignalText("재안내", 14, if (repeatEnabled) accent else muted)
-                    }
-                } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     SignalText("결제는 키오스크에서\n직접 진행해요", 12, muted, Modifier.weight(1f), lineHeight = 17)
                     TextButton(onClick = onRepeat, enabled = repeatEnabled, modifier = Modifier.heightIn(min = 48.dp)) {
                         SignalText("재안내", 14, if (repeatEnabled) accent else muted)

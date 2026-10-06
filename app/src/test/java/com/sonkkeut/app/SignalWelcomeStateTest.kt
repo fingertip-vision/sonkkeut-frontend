@@ -8,7 +8,7 @@ class SignalWelcomeStateTest {
         val pending=WelcomeState(false,"",true)
         assertFalse(pending.ready)
         assertFalse(pending.status.contains("준비가 됐어요"))
-        assertEquals("AI 준비 실패: test",pending.copy(message="AI 준비 실패: test").status)
+        assertEquals("AI를 준비하지 못했어요. 다시 시도해 주세요",pending.copy(message="AI 준비 실패: test").status)
     }
     @Test fun deniedPermissionHasAnExplicitRecoveryRoute() {
         val denied=WelcomeState(true,"",false,true)

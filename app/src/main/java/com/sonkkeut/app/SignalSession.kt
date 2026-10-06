@@ -153,17 +153,20 @@ private fun SignalMark(state: SignalPresentation, modifier: Modifier) {
 @Composable
 internal fun SignalOrderCard(order: NativeOrder, progress: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val large=LocalDensity.current.fontScale>=1.6f
-    val summary=order.items.firstOrNull()?.menu.orEmpty()+if(order.items.size>1) " 외 ${order.items.size-1}종" else " · ${order.items.sumOf { it.qty }}개"
     Surface(onClick=onOpen,modifier=modifier.fillMaxWidth().testTag("signalOrderCard"),shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceVariant,contentColor=MaterialTheme.colorScheme.onSurface) {
-        if(large) Column(Modifier.padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-            Text("주문 보기",style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.primary)
-            Text(progress,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        } else Row(Modifier.padding(horizontal=16.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(summary,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis)
-                Text(progress,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(horizontal=16.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("주문 내용",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f).semantics { heading() })
+                Text("주문 보기",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
             }
-            Text("주문 보기",style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+            // Keep every item and option available even when the camera popup is closed.
+            // Bounded scrolling preserves camera space without shrinking or ellipsizing the order.
+            Column(Modifier.fillMaxWidth().heightIn(max=if(large) 260.dp else 140.dp)
+                .verticalScroll(rememberScrollState()).testTag("orderReviewRegion")) {
+                Text(order.reviewText(),style=MaterialTheme.typography.bodyLarge,
+                    modifier=Modifier.fillMaxWidth().testTag("orderReviewText"))
+            }
+            if(progress.isNotBlank()) Text(progress,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

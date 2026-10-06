@@ -1,7 +1,7 @@
 # 손끝길 Android 작업 지침
 
 - 현재 앱은 루트 `app/`의 Kotlin + Jetpack Compose + CameraX다. `App.tsx`, `src/`, `android/`의 이전 React Native 구현에 UI 도구를 설치하지 않는다. 현재 통합 동작은 README와 `docs/uiux-integration/stage3/README.md`, 이전 배포 기준은 `docs/develop-ui-validation-0.2.4.md`를 확인한다.
-- UI 통합 작업은 포크 `develop_ui_update`에서 진행하며 원본 동기화 대상은 새 `develop_ui/ux_v2`뿐이다. 다른 브랜치에 병합하지 않는다. Git·릴리스 실행 전 `docs/uiux-integration/stage3/GIT_HANDOFF.md`의 기준 SHA·대상·APK 검증 결과를 재확인한다.
+- 0.3.1의 다섯 개선은 원본 `develop_ui/ux_v2`를 직접 추적하는 로컬 `ux_v2`에서 진행한다. 로컬 `develop_ui`와 Git 이름 충돌이 있어 로컬 이름만 다르며 remote는 `upstream`이다. 다섯 작업 완료 전 전달 APK 빌드·README 최신화·커밋·푸시는 하지 않는다. 최종 push 대상은 `upstream HEAD:refs/heads/develop_ui/ux_v2`뿐이며 다른 브랜치에 병합하지 않는다.
 - 라이브러리 구현 전 Context7에서 library ID를 resolve한 뒤 해당 버전의 문서를 조회한다. 조회 불가·결과 부족·현재 버전 미지원이면 Android 공식 문서, AndroidX 릴리스 노트·BOM 매핑과 공식 배포 메타데이터로 확인한다. 최신 예시를 기존 Kotlin/Compose 버전에 무조건 적용하지 않는다.
 - Figma는 인증이 확인된 공식 MCP를 사용한다. 파일 URL이 없으면 임의 파일을 만들거나 파일 조회 성공으로 기록하지 않는다. 인증 값은 저장소·보고서·로그에 기록하지 않는다.
 - 시안과 도구 검증은 debug 소스셋·Preview에서 진행한다. `ui-tooling`, Preview와 테스트 호스트는 release에 넣지 않는다. 현재 Kotlin 1.9.25, AGP 8.7.2, compiler 1.5.15, BOM 2024.09.03을 승인 없이 일괄 업그레이드하지 않는다.

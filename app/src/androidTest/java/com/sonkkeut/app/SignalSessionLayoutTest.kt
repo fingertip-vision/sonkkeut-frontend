@@ -67,7 +67,7 @@ class SignalSessionLayoutTest {
         var busy by mutableStateOf(true)
         var finish=0; var cancel=0
         compose.setContent { SignalSessionTheme(false) {
-            SignalSession(signalPresentation(SignalSnapshot(recording=recording,busy=busy)),"주문을 말씀해 주세요.",false,{},{},{},camera={PlaceholderCamera(it)},controls={
+            SignalSession(signalPresentation(SignalSnapshot(recording=recording,busy=busy,voiceAnalysis=!recording && busy)),"주문을 말씀해 주세요.",false,{},{},{},camera={PlaceholderCamera(it)},controls={
                 SignalSpeechControls(recording,busy,false,true,true,{},{},{finish++; recording=false},{cancel++; busy=false},{})
             })
         } }
@@ -76,7 +76,7 @@ class SignalSessionLayoutTest {
         capture("stage2-listening-fixture")
         compose.onNodeWithText("말하기 완료").performClick()
         compose.onNodeWithText("말하기 완료").assertDoesNotExist()
-        compose.onNodeWithText("주문을\n확인하고 있어요").assertExists()
+        compose.onNodeWithText("음성 분석 중").assertExists()
         capture("stage2-processing-fixture")
         compose.onNodeWithText("음성 작업 취소").performClick()
         compose.runOnIdle { assertEquals(1,finish); assertEquals(1,cancel) }
@@ -103,6 +103,9 @@ class SignalSessionLayoutTest {
         }
         val cameraSize=compose.onNodeWithTag("fixtureCamera").getUnclippedBoundsInRoot().let { (it.right-it.left) to (it.bottom-it.top) }
         if(scale>2f) compose.onNodeWithTag("signalOrderCard").performScrollTo()
+        // The review text remains available before opening and after closing the popup,
+        // including the large-font layout which previously hid every menu name.
+        compose.onNodeWithTag("orderReviewText",useUnmergedTree=true).assertTextEquals(order.reviewText())
         compose.onNodeWithTag("signalOrderCard").performClick()
         compose.onNodeWithText("주문 확인").assertIsDisplayed()
         val afterSize=compose.onNodeWithTag("fixtureCamera").getUnclippedBoundsInRoot().let { (it.right-it.left) to (it.bottom-it.top) }
@@ -123,6 +126,7 @@ class SignalSessionLayoutTest {
                 assertEquals(order.confirmation()+" 담기 확인 0 / ${order.items.sumOf { item -> item.qty }}개",seen.toString())
                 compose.onNodeWithText("닫기").performClick()
                 compose.onNodeWithTag("orderConfirmation").assertDoesNotExist()
+                compose.onNodeWithTag("orderReviewText",useUnmergedTree=true).assertTextEquals(order.reviewText())
                 if(scale>2f) compose.onNodeWithTag("signalOrderCard").performScrollTo()
                 compose.onNodeWithTag("signalOrderCard").performClick()
                 compose.onNodeWithText("주문 확인").assertIsDisplayed()
