@@ -18,6 +18,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicBoolean
 
+data class ScreenMatchPrompt(val candidate: ScreenMenuCandidate,val signature: String)
+
 class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private val storage = application.getSharedPreferences("native_app",0)
     private val menuClient = NativeMenuClient(application)
@@ -65,7 +67,10 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
     private var connectionGeneration = 0L
     private var connection: Job? = null
     private var menuVersion = -1
-    private var flow = NativeOrderFlow()
+    internal val screenMenus=MenuScreenLinks()
+    var matchingDiagnostic by mutableStateOf(""); private set
+    var screenMatchPrompt by mutableStateOf<ScreenMatchPrompt?>(null); private set
+    private var flow = NativeOrderFlow(screenMenus)
     internal val orderFlow get()=flow
     val conversation=NativeConversation(this)
     var dialogTurn by mutableStateOf<DialogTurn?>(null); internal set
@@ -133,7 +138,7 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (token != connectionGeneration) return@launch
                 if (menuVersion >= 0 && menuVersion != result.version && (order != null || conversation.active)) { conversation.stop(); resetOrder(); announce("메뉴가 변경됐습니다. 주문을 다시 확인해 주세요.") }
-                menu=snapshot; menuVersion=result.version; storeName=result.store
+                menu=snapshot; screenMenus.configure(menu); menuVersion=result.version; storeName=result.store
                 connectionMessage=if (result.offline) "오프라인 · 저장된 ${result.store} 메뉴" else "연결됨 · ${result.store}"
                 whisper.setMenuContext(menu.map { it.name })
                 val aliases=menu.flatMap { m -> (listOf(m.name)+m.aliases).map { it to m.name } }.groupBy { it.first }
@@ -148,14 +153,14 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         try {
             val normalized=BackendAddress.normalize(base,BuildConfig.DEBUG)
             val normalizedCode=code.trim().uppercase(); require(Regex("[A-Z0-9]{6}").matches(normalizedCode)) { "매장 코드는 영문·숫자 6자리입니다." }
-            if (normalized != server || normalizedCode != storeCode) { conversation.stop(); resetOrder(); menu=emptyList(); menuVersion=-1; screen=null; rawSpeech=""; rag=null; cancelSpeech() }
+            if (normalized != server || normalizedCode != storeCode) { conversation.stop(); resetOrder(); menu=emptyList(); screenMenus.configure(menu); menuVersion=-1; screen=null; rawSpeech=""; rag=null; cancelSpeech() }
             server=normalized; storeCode=normalizedCode
             storage.edit().putString("server",server).putString("storeCode",storeCode).apply(); connect()
         } catch (e: Exception) { connectionMessage=e.message ?: "주소와 코드를 확인해 주세요." }
     }
     fun open(value: String) { if (page!=value) { if(value!="home") { readingReceipt=false; receiptReader.reset(); conversation.stop() }; cameraGeneration.incrementAndGet(); cancelSpeech(); page=value; SonkkeutEngine.running=false }; if (value=="home") SonkkeutEngine.running=!paused && ready }
     fun start() { if (!ready) { announce("AI를 준비하고 있습니다. 잠시 후 다시 시작해 주세요."); return }; cameraGeneration.incrementAndGet(); paused=false; flow.paused=false; SonkkeutEngine.running=page=="home"; commands.execute { SonkkeutEngine.requestKeyframe() }; announce("카메라로 키오스크 전체 화면을 비춰 주세요.") }
-    fun pause() { readingReceipt=false; receiptReader.reset(); conversation.stop(); cameraGeneration.incrementAndGet(); if(flow.state=="S5") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
+    fun pause() { screenMenus.reset(); screenMatchPrompt=null; readingReceipt=false; receiptReader.reset(); conversation.stop(); cameraGeneration.incrementAndGet(); if(flow.state=="S5") flow.recover(); paused=true; flow.paused=true; SonkkeutEngine.running=false; cancelSpeech(); commands.execute { SonkkeutEngine.clearTarget(); lastTarget=null }; message="안내를 중지했습니다." }
     fun stopForBackground() { pause() }
     fun process(image: Image, rotation: Int) {
         if (closed || paused || page!="home" || !ready) return
@@ -197,7 +202,17 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
                         main.post { if(!closed && screen?.keyframe==keyframe) announce(if(okay) "${candidate.text} 버튼으로 안내합니다" else "화면이 바뀌었습니다. 다시 확인해 주세요.") }
                     }
                 } else announce("선택한 버튼을 현재 화면에서 확실하게 찾지 못했습니다. 화면 읽기로 다시 확인해 주세요.")
-            } else if(requested==null) applyAction(flow.accept(current))
+            } else if(requested==null) {
+                applyAction(flow.accept(current))
+                matchingDiagnostic=screenMenus.diagnostic
+                if(!conversation.active && flow.state=="SM") {
+                    clearConversationTarget()
+                    val item=flow.currentItem()
+                    val match=item?.let { screenMenus.resolve(it.menu,it.menuId,current) }
+                    screenMatchPrompt=match?.takeIf { it.status==ScreenMenuStatus.CONFIRM }?.candidate?.let { ScreenMatchPrompt(it,screenMenus.signature(current)) }
+                    message=flow.message
+                } else screenMatchPrompt=null
+            }
         } }
         json.optJSONObject("event")?.let { event ->
             if (event.optString("type")=="press" && !conversation.blocking) flow.press()
@@ -326,7 +341,15 @@ class NativeAppModel(application: Application) : AndroidViewModel(application) {
         val base=server
         viewModelScope.launch { usage.enqueue(base,payload) }
     }
-    private fun resetOrder() { flow=NativeOrderFlow(); order=null; lastTarget=null; pendingManual=null; completionReported=false; usageEventId=""; usageSteps.clear(); commands.execute { SonkkeutEngine.clearTarget() } }
+    fun confirmScreenMatch(yes: Boolean,expected: ScreenMatchPrompt) {
+        if(expected!=screenMatchPrompt) { announce("화면이 바뀌었습니다. 새 인식 내용을 확인해 주세요."); return }
+        val candidate=expected.candidate
+        val current=screen; val item=flow.currentItem(); screenMatchPrompt=null
+        if(yes && current!=null && item!=null && screenMenus.approve(item.menu,item.menuId,current,candidate,expected.signature)) {
+            flow.recover(); forceFreshScreen(); announce("확인한 메뉴의 위치를 다시 읽습니다.")
+        } else { pause(); announce(if(yes) "화면이 바뀌었습니다. 다시 확인해 주세요." else "주문을 유지하고 안내를 중지했습니다.") }
+    }
+    private fun resetOrder() { screenMenus.reset(); screenMatchPrompt=null; flow=NativeOrderFlow(screenMenus); order=null; lastTarget=null; pendingManual=null; completionReported=false; usageEventId=""; usageSteps.clear(); commands.execute { SonkkeutEngine.clearTarget() } }
     fun refreshSpeechStatus() { val status=whisper.status(); modelInstalled=status["installed"]==true; if (!speechBusy) speechStatus=if(modelInstalled) "자체 Whisper v3 준비됨" else "자체 Whisper v3 다운로드 필요 · 약 485MB" }
     fun downloadSpeech() {
         if (speechBusy) return

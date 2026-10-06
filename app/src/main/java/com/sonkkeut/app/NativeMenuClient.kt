@@ -7,6 +7,7 @@ import kr.sonkkeut.android.MenuDocument
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 data class NativeMenu(val store: String, val version: Int, val items: List<MenuDocument>, val offline: Boolean = false)
@@ -27,13 +28,13 @@ class NativeMenuClient(context: Context) {
                     while (true) { val count = input.read(buffer); if (count < 0) break; require(result.size() + count <= 1000000); result.write(buffer,0,count) }; result.toByteArray()
                 }
                 val text = bytes.toString(Charsets.UTF_8)
-                val menu = parse(text,code)
+                val menu = parse(text,code,server)
                 storage.edit().putString(key,text).apply(); menu
             }
         } catch (e: IllegalArgumentException) { throw e }
-        catch (e: Exception) { if (cache != null) parse(cache,code).copy(offline=true) else throw e }
+        catch (e: Exception) { if (cache != null) parse(cache,code,server).copy(offline=true) else throw e }
     }
-    private fun parse(text: String, code: String): NativeMenu {
+    private fun parse(text: String, code: String, server: String): NativeMenu {
         val json = JSONObject(text)
         require(json.getString("store_code") == code && json.getInt("menu_version") >= 0)
         val array = json.getJSONArray("items"); require(array.length() <= 1000)
@@ -47,7 +48,10 @@ class NativeMenuClient(context: Context) {
             require(terms==null || terms.length()<=30)
             val related=if(terms==null) emptyList() else (0 until terms.length()).map { terms.getString(it).also { term -> require(term.length in 1..80) } }
             val description=if(e.isNull("description")) "" else e.optString("description").also { require(it.length<=500) }
-            MenuDocument(name,aliases,e.getBoolean("sold_out"),e.optString("category"),price,related,description)
+            // Namespace backend IDs by server and store; old API payloads fall back to the
+            // canonical name, never list position or an index that changes after refresh.
+            val identity=JSONArray(listOf(server,code,if(e.has("id") && !e.isNull("id")) "id:"+e.get("id").toString() else "name:"+name)).toString()
+            MenuDocument(name,aliases,e.getBoolean("sold_out"),e.optString("category"),price,related,description,identity)
         }
         return NativeMenu(json.getString("store_name"),json.getInt("menu_version"),items)
     }

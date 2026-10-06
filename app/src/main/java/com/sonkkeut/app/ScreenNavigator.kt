@@ -1,12 +1,13 @@
 package com.sonkkeut.app
 
 import kotlin.math.abs
+import kr.sonkkeut.android.ScreenMenuStatus
 
-enum class DetectionStatus { FOUND, SCROLL, SWITCH_TAB, WAITING_CHANGE, NOT_FOUND_IN_VIEWPORT, UNREADABLE }
+enum class DetectionStatus { FOUND, CONFIRM_MATCH, AMBIGUOUS, SCROLL, SWITCH_TAB, WAITING_CHANGE, NOT_FOUND_IN_VIEWPORT, UNREADABLE }
 data class DetectionResult(val status: DetectionStatus,val target: RecognizedElement?=null,val message: String="")
 
 /** Cooperative kiosk navigation. An action is completed only by fresh visual evidence. */
-class ScreenNavigator(private val maxScrolls: Int=3,private val maxTabs: Int=4) {
+class ScreenNavigator(private val maxScrolls: Int=3,private val maxTabs: Int=4, val links: MenuScreenLinks=MenuScreenLinks()) {
     val observed=linkedSetOf<String>()
     private val visited=linkedSetOf<String>()
     private val views=linkedSetOf<String>()
@@ -32,8 +33,14 @@ class ScreenNavigator(private val maxScrolls: Int=3,private val maxTabs: Int=4) 
         lastFrame=screen.keyframe
         if(started==Long.MIN_VALUE) started=now
         screen.elements.filter { it.readable && it.kind=="menu" }.forEach { observed+=it.text }
-        val exact=screen.elements.filter { it.readable && it.kind=="menu" && n(it.text)==n(name) && it.box.size==4 && it.box.all { p -> p.isFinite() && p in 0.0..1.0 } && it.box[2]>it.box[0] && it.box[3]>it.box[1] }
-        if(exact.size==1) { awaiting=null; return DetectionResult(DetectionStatus.FOUND,exact.single()) }
+        val match=links.resolve(name,"",screen)
+        val target=match.candidate?.let { c -> screen.elements.singleOrNull { it.id==c.regionId } }
+        if(match.status==ScreenMenuStatus.FOUND && target!=null) {
+            if(target.kind !in listOf("menu","button")) return DetectionResult(DetectionStatus.UNREADABLE,message="이름을 읽었지만 누를 버튼 영역을 확인하지 못했습니다.")
+            awaiting=null; return DetectionResult(DetectionStatus.FOUND,target)
+        }
+        if(match.status==ScreenMenuStatus.CONFIRM) return DetectionResult(DetectionStatus.CONFIRM_MATCH,message="화면에서 비슷하게 읽힌 상품을 확인해 주세요.")
+        if(match.status==ScreenMenuStatus.AMBIGUOUS) return DetectionResult(DetectionStatus.AMBIGUOUS,message="같은 이름이나 비슷한 상품이 여러 곳에 보여 위치를 확정하지 못했습니다.")
         if(now-started>=90000) return DetectionResult(DetectionStatus.NOT_FOUND_IN_VIEWPORT,message="화면 탐색 시간이 지났습니다.")
         val readable=screen.elements.any { it.readable && it.kind=="menu" }
         if(!readable && screen.elements.none { it.readable && it.kind=="tab" }) return DetectionResult(DetectionStatus.UNREADABLE,message="메뉴 글자를 확실하게 읽지 못했습니다.")

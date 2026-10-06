@@ -1,9 +1,10 @@
 package com.sonkkeut.app
 
 import kr.sonkkeut.android.MenuDocument
+import kr.sonkkeut.android.ScreenMenuResolver
 import org.json.JSONObject
 
-data class NativeOrderItem(val menu: String, val qty: Int, val price: Int?, val temperature: String? = null, val size: String? = null, val extras: Map<String, ExtraOption> = emptyMap())
+data class NativeOrderItem(val menu: String, val qty: Int, val price: Int?, val temperature: String? = null, val size: String? = null, val extras: Map<String, ExtraOption> = emptyMap(), val menuId: String = "")
 data class NativeOrder(val items: List<NativeOrderItem>, val dine: String?) {
     fun expectedTotal(): Int? = if(items.any { it.price==null || it.extras.values.any { option -> option.surcharge==null } }) null else items.sumOf { (it.price!!+it.extras.values.sumOf { option -> option.surcharge!! })*it.qty }
     fun confirmation() = items.joinToString(", ") { "${if (it.temperature == "ice") "아이스 " else if (it.temperature == "hot") "따뜻한 " else ""}${it.menu}${it.size?.let { s -> " $s" } ?: ""} ${it.qty}개${if(it.extras.isEmpty()) "" else " · "+it.extras.values.joinToString { option -> option.label }}" } + (dine?.let { ", $it" } ?: "") + " 맞나요?"
@@ -61,7 +62,7 @@ object NativeOrderParser {
             require(!(ice && hot)) { "${hit.item.name}의 온도를 하나만 말씀해 주세요." }
             val large = Regex("라지|large").containsMatchIn(options); val small = Regex("스몰|small").containsMatchIn(options)
             require(!(large && small)) { "${hit.item.name}의 크기를 하나만 말씀해 주세요." }
-            NativeOrderItem(hit.item.name, qty, hit.item.price, if (ice) "ice" else if (hot) "hot" else null, if (large) "라지" else if (small) "스몰" else null)
+            NativeOrderItem(hit.item.name, qty, hit.item.price, if (ice) "ice" else if (hot) "hot" else null, if (large) "라지" else if (small) "스몰" else null, menuId=kr.sonkkeut.android.ScreenMenuResolver.key(hit.item))
         }
         return NativeOrder(items, if (takeout) "포장" else if (dinein) "매장" else null)
     }

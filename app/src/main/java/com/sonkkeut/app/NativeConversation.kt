@@ -7,7 +7,11 @@ import kr.sonkkeut.android.*
 /** Main-thread coordinator; camera/ASR/TTS workers return only generation-scoped results. */
 class NativeConversation(private val model: NativeAppModel) {
     val dialog=VoiceDialogManager()
-    val navigator=ScreenNavigator()
+    val navigator=ScreenNavigator(links=model.screenMenus)
+    private var pendingScreenMatch: ScreenMenuCandidate?=null
+    private var matchSignature=""
+    private var matchName=""
+    private var matchId=""
     val verifier=VisionVerifier()
     var active by mutableStateOf(false); private set
     var closeup by mutableStateOf(false); private set
@@ -35,6 +39,7 @@ class NativeConversation(private val model: NativeAppModel) {
         (context.startsWith("cart:") && model.orderFlow.allAdded() && !checkoutConfirmed))
     val guidanceAllowed get()=active && dialog.state==DialogState.WAITING_SCREEN && !closeup && !model.recording && !model.speechBusy
     fun begin() {
+        model.screenMenus.reset(); pendingScreenMatch=null
         active=true; context=""; requested=""; pendingMenu=null; recommendation=null; checkoutConfirmed=false
         closeup=false; fullScanFound=false; navigator.reset(); verifier.cancel(); navigating=false; navigationStarted=0L
         draftDine=null; preOrderNavigation=false; dialog.waitForScreen(); model.dialogTurn=null
@@ -96,7 +101,10 @@ class NativeConversation(private val model: NativeAppModel) {
             "menu","category" -> if(item!=null) search(item.menu,screen)
             "option" -> if(item!=null) {
                 val names=screen.elements.filter { it.readable }.map { NativeOrderParser.normalize(it.text) }
-                if(names.none { it.replace(Regex("[0-9,]+원"),"")==NativeOrderParser.normalize(item.menu) }) {
+                val identity=model.screenMenus.resolve(item.menu,item.menuId,screen)
+                if(identity.status==ScreenMenuStatus.CONFIRM) { askScreenMatch(item.menu,item.menuId,screen,identity.candidate!!); return }
+                if(identity.status==ScreenMenuStatus.AMBIGUOUS) { requested=item.menu; ask(VoiceSlot.EXACT_SEARCH,"비슷한 메뉴가 여러 개여서 선택을 보류합니다. 가까이 다시 읽을까요?",yesNo()); return }
+                if(identity.status!=ScreenMenuStatus.FOUND) {
                     if(navigating && navigationAction?.target?.kind=="back") return
                     if(screen.elements.any { it.readable && it.kind=="back" }) ask(VoiceSlot.NAVIGATION,"다른 메뉴의 옵션 화면입니다. 뒤로 돌아갈까요?",yesNo())
                     else stop("주문 메뉴의 옵션 화면인지 확인하지 못했습니다. 화면을 다시 비춰 주세요.")
@@ -150,8 +158,19 @@ class NativeConversation(private val model: NativeAppModel) {
                 else if(recommendation!=null) ask(VoiceSlot.EXACT_SEARCH,"${name}를 찾지 못했습니다. 현재 주문을 유지하고 가까이 다시 읽을까요?",yesNo())
                 else ask(VoiceSlot.EXACT_SEARCH,"${name}를 화면에서 확인하지 못했습니다. 가까이 다시 읽을까요? 네 또는 아니요라고 말씀해 주세요.",yesNo())
             }
+            DetectionStatus.CONFIRM_MATCH -> {
+                val item=model.orderFlow.currentItem()
+                val identity=model.screenMenus.resolve(name,item?.menuId.orEmpty(),screen)
+                identity.candidate?.let { askScreenMatch(name,item?.menuId.orEmpty(),screen,it) }
+            }
+            DetectionStatus.AMBIGUOUS -> { requested=name; ask(VoiceSlot.EXACT_SEARCH,"비슷한 메뉴나 위치가 여러 개입니다. 선택을 보류하고 가까이 다시 읽을까요?",yesNo()) }
             DetectionStatus.WAITING_CHANGE -> Unit
         }
+    }
+    private fun askScreenMatch(name: String,id: String,screen: RecognizedScreen,candidate: ScreenMenuCandidate) {
+        navigating=false; navigationAction=null; requested=name
+        pendingScreenMatch=candidate; matchName=name; matchId=id; matchSignature=model.screenMenus.signature(screen)
+        ask(VoiceSlot.SCREEN_MENU_CONFIRM,"화면에서 '${candidate.observed}'라고 읽었습니다. 주문하신 ${name}가 맞나요? 확실하지 않으면 아니요라고 말씀해 주세요.",yesNo())
     }
     private fun chooseMenu(name: String) {
         val exact=MenuMatcher(model.menu).exact(name)
@@ -199,12 +218,19 @@ class NativeConversation(private val model: NativeAppModel) {
     }
     private fun accept(slot: VoiceSlot,value: String) {
         when(slot) {
+            VoiceSlot.SCREEN_MENU_CONFIRM -> {
+                val candidate=pendingScreenMatch; pendingScreenMatch=null
+                val screen=model.screen
+                if(value=="네" && candidate!=null && screen!=null && model.screenMenus.approve(matchName,matchId,screen,candidate,matchSignature)) {
+                    if(model.order==null) chooseMenu(matchName) else { model.orderFlow.paused=false; model.forceFreshScreen() }
+                } else { requested=matchName; beginCloseup() }
+            }
             VoiceSlot.CATEGORY -> model.screen?.elements?.singleOrNull { it.readable && it.kind=="tab" && it.text==value }?.let { preOrderNavigation=true; navigating=true; navigationStarted=SystemClock.elapsedRealtime(); model.navigationTarget(it,"${it.text} 분류 버튼으로 안내합니다.") }
             VoiceSlot.MENU -> chooseMenu(value)
             VoiceSlot.QUANTITY -> {
                 val selected=pendingMenu ?: return
                 if(draft.items.size>=10) { reviewDraft("메뉴는 최대 열 항목까지 준비할 수 있습니다. "); return }
-                draft.add(NativeOrderItem(selected.name,value.toInt(),selected.price)); pendingMenu=null; reviewDraft()
+                draft.add(NativeOrderItem(selected.name,value.toInt(),selected.price,menuId=ScreenMenuResolver.key(selected))); pendingMenu=null; reviewDraft()
             }
             VoiceSlot.DRAFT -> when(value) {
                 "메뉴 추가" -> if(draft.items.size<10) askMenu() else reviewDraft("메뉴는 최대 열 항목까지 준비할 수 있습니다. ")

@@ -1,7 +1,8 @@
 package com.sonkkeut.app
+import kr.sonkkeut.android.ScreenMenuStatus
 
 /** Keeps explicit confirmation and the original duplicate-add/cart verification policy. */
-class NativeOrderFlow {
+class NativeOrderFlow(val menuLinks: MenuScreenLinks=MenuScreenLinks()) {
     var state = "S0"; private set
     var order: NativeOrder? = null; private set
     var screen: RecognizedScreen? = null; private set
@@ -99,16 +100,24 @@ class NativeOrderFlow {
             return choose(find("^(결제|결제하기|주문하기|카드결제)$"), "checkout", mapOf("screen_type" to "payment"), "${current.total?.let { "${it}원입니다. " } ?: ""}결제 버튼으로 안내합니다")
         }
         val item = intent.items[index]
-        fun isItem(e: RecognizedElement) = NativeOrderParser.normalize(e.text.replace(Regex("[\\d,]+\\s*원"),"")) == NativeOrderParser.normalize(item.menu)
+        val identity=menuLinks.resolve(item.menu,item.menuId,current)
+        if(current.type in listOf("menu","option") && identity.status in listOf(ScreenMenuStatus.CONFIRM,ScreenMenuStatus.AMBIGUOUS)) {
+            enter("SM", if(identity.status==ScreenMenuStatus.CONFIRM) "화면의 '${identity.candidate!!.observed}'가 ${item.menu}인지 확인해 주세요." else "비슷한 메뉴나 위치가 여러 개입니다. 화면을 다시 확인해 주세요.")
+            return null
+        }
+        fun isItem(e: RecognizedElement) = identity.status==ScreenMenuStatus.FOUND && identity.candidate?.regionId==e.id
+        if(current.type=="menu" && identity.status==ScreenMenuStatus.FOUND && usable.none(::isItem)) {
+            enter("SM","메뉴 이름은 읽었지만 누를 버튼 영역을 확인하지 못했습니다. 가까이 다시 비춰 주세요."); return null
+        }
         when (current.type) {
             "menu" -> {
-                usable.firstOrNull { it.kind == "menu" && isItem(it) }?.let { return choose(it,"menu",mapOf("screen_type" to "option")) }
+                usable.firstOrNull { isItem(it) }?.let { return choose(it,"menu",mapOf("screen_type" to "option")) }
                 val move = usable.firstOrNull { it.kind == "tab" && NativeOrderParser.normalize(it.text) !in visited } ?: find("다음페이지|다음|더보기")
                 if (move != null && visited.size < 4) { visited += NativeOrderParser.normalize(move.text); return choose(move,"navigate",mapOf("changed" to true)) }
                 enter("SE", "${item.menu}를 찾지 못했습니다. 화면 읽기로 메뉴를 확인해 주세요.")
             }
             "option" -> {
-                if (usable.none(::isItem)) { enter("SE","다른 메뉴의 옵션 화면입니다. 뒤로 돌아가 주문 메뉴를 확인해 주세요."); return null }
+                if (identity.status!=ScreenMenuStatus.FOUND) { enter("SE","주문 메뉴의 옵션 화면인지 확인하지 못했습니다. 뒤로 돌아가 확인해 주세요."); return null }
                 for (value in listOfNotNull(item.temperature,item.size)+item.extras.values.map { it.label }) {
                     val target = find(when(value) { "hot" -> "^(hot|핫|따뜻한|따뜻하게)$"; "ice" -> "^(ice|iced|아이스|차갑게)$"; else -> "^${Regex.escape(NativeOrderParser.normalize(value))}$" })
                     if (target != null && current.selected?.contains(target.id) == true) configured += value

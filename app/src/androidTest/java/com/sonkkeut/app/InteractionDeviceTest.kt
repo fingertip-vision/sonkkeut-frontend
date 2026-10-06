@@ -31,6 +31,10 @@ class InteractionDeviceTest {
         } finally { ui { store.clear() } }
     }
     private fun say(model: NativeAppModel,text: String) { model.conversation.spoken(text,SpeechEvidence()) }
+    private fun injectCurrentScreen(model: NativeAppModel,screen: RecognizedScreen) {
+        // Inject a camera snapshot without changing production visibility or running real camera IO.
+        NativeAppModel::class.java.getDeclaredMethod("setScreen",RecognizedScreen::class.java).apply { isAccessible=true }.invoke(model,screen)
+    }
     private fun completeAck(model: NativeAppModel) { val turn=model.dialogTurn!!; assertNotNull(turn.accepted); model.dialogPromptCompleted(turn.generation,true) }
     private fun finishDraft(model: NativeAppModel) {
         say(model,"주문 시작"); completeAck(model)
@@ -127,5 +131,30 @@ class InteractionDeviceTest {
         model.conversation.onScreen(RecognizedScreen("cart",99,emptyList(),3,10000,null))
         assertEquals(token,model.dialogTurn!!.generation); assertEquals(1,model.conversation.draftItems.size); assertNull(model.order)
         say(model,"아니요"); assertEquals(1,model.conversation.draftItems.size)
+    }
+    @Test fun damagedOcrAsksVoiceConfirmationBeforeAllowingMenuIdentity() = replay { model ->
+        val menu=MenuDocument("까르보나라",listOf("크림파스타"),price=9000,id="test-store:1")
+        model.screenMenus.configure(listOf(menu)); model.conversation.begin()
+        model.confirmStepOrder(NativeOrder(listOf(NativeOrderItem(menu.name,1,menu.price,menuId=menu.id)),null))
+        val screen=RecognizedScreen("menu",10,listOf(RecognizedElement("existing-button","menu","까르보나랴",listOf(.1,.1,.5,.3),true)),0,null,null)
+        injectCurrentScreen(model,screen); model.conversation.onScreen(screen)
+        assertEquals(VoiceSlot.SCREEN_MENU_CONFIRM,model.conversation.dialog.slot)
+        assertTrue(model.orderFlow.paused); assertNull(model.orderFlow.action)
+        assertTrue(model.dialogTurn!!.prompt.contains("까르보나랴"))
+        say(model,"네"); completeAck(model)
+        assertEquals(ScreenMenuStatus.FOUND,model.screenMenus.resolve(menu.name,menu.id,screen).status)
+        assertFalse(model.orderFlow.paused)
+        assertEquals("existing-button",model.orderFlow.accept(screen.copy(keyframe=11))!!.target.id)
+    }
+    @Test fun staleVoiceApprovalCannotBindMovedButton() = replay { model ->
+        val menu=MenuDocument("까르보나라",price=9000,id="test-store:1")
+        model.screenMenus.configure(listOf(menu)); model.conversation.begin()
+        model.confirmStepOrder(NativeOrder(listOf(NativeOrderItem(menu.name,1,menu.price,menuId=menu.id)),null))
+        val screen=RecognizedScreen("menu",10,listOf(RecognizedElement("existing-button","menu","까르보나랴",listOf(.1,.1,.5,.3),true)),0,null,null)
+        injectCurrentScreen(model,screen); model.conversation.onScreen(screen); say(model,"네")
+        injectCurrentScreen(model,screen.copy(keyframe=11,elements=screen.elements.map { it.copy(box=listOf(.4,.4,.8,.6)) }))
+        completeAck(model)
+        assertTrue(model.conversation.closeup); assertTrue(model.orderFlow.paused); assertNull(model.orderFlow.action)
+        assertEquals(ScreenMenuStatus.CONFIRM,model.screenMenus.resolve(menu.name,menu.id,model.screen!!).status)
     }
 }

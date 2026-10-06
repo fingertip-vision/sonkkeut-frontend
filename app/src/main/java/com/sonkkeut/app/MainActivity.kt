@@ -92,6 +92,13 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
     }
     BackHandler(model.page!="home") { pendingMic=false; model.open("home") }
     fun go(page: String) { pendingMic=false; output.stop(); model.open(page) }
+    model.screenMatchPrompt?.let { prompt ->
+        val candidate=prompt.candidate
+        AlertDialog(onDismissRequest={model.confirmScreenMatch(false,prompt)},title={Text("메뉴 인식 확인")},
+            text={Text("화면에서 '${candidate.observed}'라고 읽었습니다. ${candidate.menu.name}가 맞나요? 확실하지 않으면 다시 읽어 주세요.")},
+            confirmButton={TextButton(onClick={model.confirmScreenMatch(true,prompt)}) { Text("맞아요") }},
+            dismissButton={TextButton(onClick={model.confirmScreenMatch(false,prompt)}) { Text("중지하고 다시 읽기") }})
+    }
     Surface(Modifier.fillMaxSize()) {
         when(model.page) {
             "home" -> if(model.conversation.reviewingDraft) NativeDraftPage(model) else Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -127,6 +134,7 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 NativeButton("화면 다시 인식·안내 복구") { model.recoverScreen() }
                 NativeButton("화면·카메라·음성 설정") { go("accessibility") }
                 NativeButton("서버·매장 설정") { go("connection") }
+                NativeButton("메뉴 인식 진단") { go("matching") }
                 NativeButton("이 매장 메뉴 검색 정보") { go("knowledge") }
                 NativeButton("결제 완료·주문 번호 읽기",enabled=model.ready && cameraGranted) { model.startReceiptReading() }
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
@@ -137,6 +145,11 @@ private fun NativeApp(model: NativeAppModel = viewModel()) {
                 Text("Kotlin 앱 ${BuildConfig.VERSION_NAME} · 휴대폰에서 OCR·손끝·음성 추론",style=MaterialTheme.typography.bodyMedium)
             }
             "accessibility" -> AccessibilitySettings { go("menu") }
+            "matching" -> NativePage("메뉴 인식 진단",{go("menu")}) {
+                Text("들은 문장: ${model.rawSpeech.ifBlank { "아직 없음" }}")
+                Text(model.matchingDiagnostic.ifBlank { "카메라로 주문 메뉴를 확인한 뒤 조회해 주세요." })
+                Text("인식 결과와 메뉴 DB를 비교한 기록입니다. 점수는 정확도 확률이 아닙니다. 영상과 음성을 서버로 전송하지 않습니다.")
+            }
             "knowledge" -> NativeKnowledgePage(model) { go("menu") }
             "connection" -> NativePage("서버·매장 설정",{go("menu")}) {
                 var base by rememberSaveable { mutableStateOf(model.server) }
