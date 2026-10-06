@@ -1,0 +1,18 @@
+{
+  "version": "0.2.3",
+  "version_code": 13,
+  "unit_tests_passed": 107,
+  "android_tests_passed": 23,
+  "physical_phone_tested": false,
+  "real_microphone_dialog_tested": false,
+  "voice_coordinator_tests": "Injected recognition text and TTS completion events",
+  "apk_sha256": "2f8ccaefc220a338dd6ba8c10166fc2d5fb02a610bac20407047028734c1ce45",
+  "apk_size_bytes": 65259965,
+  "release_apk_smoke": {
+    "passed": true,
+    "camera_start_pause_resume": true,
+    "backend_connected": true,
+    "fatal_crash_absent": true,
+    "real_kiosk_camera_tested": false
+  }
+}
